@@ -1831,9 +1831,9 @@ To create/register a plugin, you have to :
   #endif
 
   // Do not include large blobs but fetch them from CDN
-  #ifndef WEBSERVER_USE_CDN_JS_CSS
+  /*#ifndef WEBSERVER_USE_CDN_JS_CSS
     #define WEBSERVER_USE_CDN_JS_CSS
-  #endif
+  #endif*/
 
   #ifndef BUILD_NO_DEBUG
     #define BUILD_NO_DEBUG
