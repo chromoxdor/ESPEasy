@@ -2031,7 +2031,7 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
 
     while (i--) {
       curr_value += step_value;
-      const int16_t new_value = curr_value / resolution_factor;
+      const int32_t new_value = curr_value / resolution_factor;
             #if defined(ESP8266)
       analogWrite(gpio, new_value);
             #endif // if defined(ESP8266)
