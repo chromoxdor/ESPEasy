@@ -1856,13 +1856,13 @@ void initAnalogWrite()
 
   for (uint8_t x = 0; x < 16; x++) {
     ledChannelPin[x]  = -1;
-    ledChannelFreq[x] = ledcSetup(x, 1000, 10); // Clear the channel
+    ledChannelFreq[x] = ledcSetup(x, 1000, 16); // Clear the channel
   }
   #endif // if defined(ESP32)
   #ifdef ESP8266
 
   // See https://github.com/esp8266/Arduino/commit/a67986915512c5304bd7c161cf0d9c65f66e0892
-  analogWriteRange(1023);
+  analogWriteRange(4095);
   #endif // ifdef ESP8266
 }
 
@@ -1922,12 +1922,12 @@ int8_t attachLedChannel(int pin, uint32_t frequency)
     mustSetup = true;
 
     // Set some default frequency
-    ledChannelFreq[ledChannel] = 1000;
+    ledChannelFreq[ledChannel] = 900;
   }
 
   if (mustSetup) {
-    // setup channel to 10 bit and set frequency.
-    ledChannelFreq[ledChannel] = ledcSetup(ledChannel, ledChannelFreq[ledChannel], 10);
+    // setup channel to 16 bit and set frequency.
+    ledChannelFreq[ledChannel] = ledcSetup(ledChannel, ledChannelFreq[ledChannel], 16);
     ledChannelPin[ledChannel]  = pin; // store pin nr
     ledcAttachPin(pin, ledChannel);   // attach to this pin
     //    pinMode(pin, OUTPUT);
