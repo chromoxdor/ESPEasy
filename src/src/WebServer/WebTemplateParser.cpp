@@ -61,14 +61,14 @@ uint8_t navMenuIndex = MENU_INDEX_MAIN;
 // See https://github.com/letscontrolit/ESPEasy/issues/1650
 const __FlashStringHelper* getGpMenuIcon(uint8_t index) {
   switch (index) {
-    case MENU_INDEX_MAIN: return F("&#8962;");
-    case MENU_INDEX_CONFIG: return F("&#9881;");
-    case MENU_INDEX_CONTROLLERS: return F("&#128172;");
-    case MENU_INDEX_HARDWARE: return F("&#128204;");
-    case MENU_INDEX_DEVICES: return F("&#128268;");
-    case MENU_INDEX_RULES: return F("&#10740;");
-    case MENU_INDEX_NOTIFICATIONS: return F("&#9993;");
-    case MENU_INDEX_TOOLS: return F("&#128295;");
+    case MENU_INDEX_MAIN: return F("&#8962;&#xFE0E;");
+    case MENU_INDEX_CONFIG: return F("&#9881;&#xFE0E;");
+    case MENU_INDEX_CONTROLLERS: return F("&#9990;&#xFE0E;");
+    case MENU_INDEX_HARDWARE: return F("&#9783;&#xFE0E;");
+    case MENU_INDEX_DEVICES: return F("&#10070;&#xFE0E;");
+    case MENU_INDEX_RULES: return F("&#10740;&#xFE0E;");
+    case MENU_INDEX_NOTIFICATIONS: return F("&#9993;&#xFE0E;");
+    case MENU_INDEX_TOOLS: return F("&#9888;&#xFE0E;");
   }
   return F("");
 }
