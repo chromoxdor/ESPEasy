@@ -13,7 +13,7 @@ uint16_t portStatusStruct::getDutyCycle() const
   return 0;
 }
 
-int16_t portStatusStruct::getValue() const
+uint16_t portStatusStruct::getValue() const
 {
   switch (mode) {
     case PIN_MODE_PWM:

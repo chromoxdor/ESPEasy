@@ -10,9 +10,9 @@ struct portStatusStruct {
 
   uint16_t getDutyCycle() const;
 
-  int16_t getValue() const;
+  uint16_t getValue() const;
 
-  int16_t dutyCycle = 0;
+  uint16_t dutyCycle = 0;
 
   int8_t state          : 2;       // -1,0,1
   int8_t output         : 2;       // -1,0,1
