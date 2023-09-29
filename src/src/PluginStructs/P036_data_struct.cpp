@@ -466,12 +466,12 @@ void P036_data_struct::display_logo() {
   const tFontSettings iFontsettings = CalculateFontSettings(2); // get font with max. height for displaying "ESP Easy"
 
   bDisplayingLogo = true;                                       // next time the display must be cleared completely
-  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
   display->setFont(FontSizes[iFontsettings.fontIdx].fontData);
   display->clear();                                             // resets all pixels to black
   display->setColor(WHITE);
-  display->drawString(65, iFontsettings.Top + TopLineOffset,                                              F("ESP"));
-  display->drawString(65, iFontsettings.Top + iFontsettings.Height + iFontsettings.Space + TopLineOffset, F("Easy"));
+  display->drawString(80, iFontsettings.Top + TopLineOffset,                                              F("Coffeemaker"));
+  display->drawString(80, iFontsettings.Top + iFontsettings.Height + iFontsettings.Space + TopLineOffset, F("3000"));
 
   if (getDisplaySizeSettings(disp_resolution).PixLeft < left) { left = getDisplaySizeSettings(disp_resolution).PixLeft; }
   top = (getDisplaySizeSettings(disp_resolution).Height - espeasy_logo_height) / 2;
