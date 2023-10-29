@@ -1571,6 +1571,40 @@ int http_authenticate(const String& logIdentifier,
         }
       }
     #endif
+    //#if FEATURE_OWEATHER_EVENT
+      // Generate event with the response of a openweathermap request (https://openweathermap.org/api/one-call-api)
+      // Example command: sendtohttp,api.openweathermap.org,80,/data/2.5/weather?id=2950159&units=metric&appid=<your appid>
+      // For the app id you have to register (https://home.openweathermap.org/users/sign_up)
+      // The location id you´ll get by finding a city/village on the website and get the id at the end of the url (e.g. https://openweathermap.org/city/2950159)
+      // Example of the event: "EVENT: OpenweatherReply=<id>,<temp>,<feels_like>,<temp_min>,<temp_ma>,<pressure>,<humidity>,<windspeed_m/s>,<wind_direction>,<condition><condition_string>"
+      // A cheatsheet for the weather-conditions (<condition>) can be found here: https://openweathermap.org/weather-conditions
+      // In rules you can grep the reply by "On OpenweatherReply Do ..."
+      //
+      // Note: The 2.5 API is deprecated but i couldn´t find an official statement if and when it will be discontinued
+      // The "2.5 API is still working with the new API-keys
+      // This feauture will get removed as soon as the 2.5 API stops working. There will be no update to 3.0
+      
+      if (httpCode == 200 && equals(host, F("api.openweathermap.org"))) {
+          String result = http.getString(); 
+          result.replace('[', '_'); //get rid of these otherwise parsing won´t work
+          result.replace(']', '_');
+          String wVals;
+          String res;
+          int Num[11]{25, 8, 9, 10, 11, 12, 13, 15, 16, 3, 5};  
+
+          for (int i : Num) {
+            res = parseStringKeepCase(result, i);
+            res = res.substring(res.lastIndexOf(':')+1);
+            if (res.endsWith("}")) {res = res.substring(0,res.lastIndexOf('}'));} //get rid of
+            if (i == 5) {res = res.substring(1);}                       //unwanted characters
+            wVals += res;
+            if (i != 5) {wVals += ",";}
+          }
+
+          eventQueue.addMove(strformat(F("OpenweatherReply=%s"),                                            
+            wVals.c_str()));
+        }
+    //#endif
   }
   
 #ifndef BUILD_NO_DEBUG
