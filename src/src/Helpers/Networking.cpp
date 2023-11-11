@@ -1576,7 +1576,7 @@ int http_authenticate(const String& logIdentifier,
       // Example command: sendtohttp,api.openweathermap.org,80,/data/2.5/weather?id=2950159&units=metric&appid=<your appid>
       // For the app id you have to register (https://home.openweathermap.org/users/sign_up)
       // The location id you´ll get by finding a city/village on the website and get the id at the end of the url (e.g. https://openweathermap.org/city/2950159)
-      // Example of the event: "EVENT: OpenweatherReply=<id>,<temp>,<feels_like>,<temp_min>,<temp_ma>,<pressure>,<humidity>,<windspeed_m/s>,<wind_direction>,<condition><condition_string>"
+      // Example of the event: "EVENT: OpenweatherReply=<id>,<temp>,<feels_like>,<temp_min>,<temp_ma>,<pressure>,<humidity>,<windspeed_m/s>,<wind_direction>,<condition>,<condition_string>"
       // A cheatsheet for the weather-conditions (<condition>) can be found here: https://openweathermap.org/weather-conditions
       // In rules you can grep the reply by "On OpenweatherReply Do ..."
       //
@@ -1595,8 +1595,8 @@ int http_authenticate(const String& logIdentifier,
           for (int i : Num) {
             res = parseStringKeepCase(result, i);
             res = res.substring(res.lastIndexOf(':')+1);
-            if (res.endsWith("}")) {res = res.substring(0,res.lastIndexOf('}'));} //get rid of
-            if (i == 5) {res = res.substring(1);}                       //unwanted characters
+            if (res.endsWith("}")) {res = res.substring(0,res.lastIndexOf('}'));} //get rid of unwanted characters
+            if (i == 5) {res = res+ "'";}                       
             wVals += res;
             if (i != 5) {wVals += ",";}
           }
