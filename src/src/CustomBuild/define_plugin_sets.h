@@ -3186,4 +3186,16 @@ To create/register a plugin, you have to :
     #endif
   #endif
 
+
+
+// TODO TD-er: Test feature, must remove
+/*
+#ifdef FEATURE_ALTERNATIVE_CDN_URL
+#undef FEATURE_ALTERNATIVE_CDN_URL
+#endif
+#define FEATURE_ALTERNATIVE_CDN_URL 1
+*/
+
+
+
 #endif // CUSTOMBUILD_DEFINE_PLUGIN_SETS_H
