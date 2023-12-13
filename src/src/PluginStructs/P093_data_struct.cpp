@@ -10,6 +10,10 @@
  *
  * Plugin is based on "Arduino library to control Mitsubishi Heat Pumps" from
  * https://github.com/SwiCago/HeatPump.
+ * 
+ * SetRemoteTemperature is based on following Issue and Resolve
+ * https://github.com/SwiCago/HeatPump/pull/144#issue-514996963
+ * https://github.com/SwiCago/HeatPump/pull/144/commits/c50372c7632b9e7324caf0c0fc0773871645688e
  *
  */
 
@@ -47,7 +51,7 @@ bool P093_data_struct::sync() {
 }
 
 bool P093_data_struct::read(String& result) const {
-  if (_valuesInitialized == false) {
+  if (!_valuesInitialized) {
     return false;
   }
 
@@ -78,33 +82,89 @@ bool P093_data_struct::read(String& result) const {
     result += _currentValues.compressorFrequency;
   }
   result += F(",\"temperature\":");
-  result += toString(_currentValues.temperature, 1) + '}';
+  result += toString(_currentValues.temperature, 1);
+  result += F(",\"remoteTemperature\":");
+  result += toString(_currentValues.remoteTemperature, 1) + '}';
+
+  return true;
+}
+
+bool P093_data_struct::plugin_get_config_value(struct EventStruct *event,
+                                               String            & string) {
+  if (!_valuesInitialized) {
+    return false;
+  }
+  bool success         = true;
+  const String command = parseString(string, 1);
+
+  if (equals(command, F("roomtemperature"))) {
+    string = toString(_currentValues.roomTemperature, 1);
+  } else
+  if (equals(command, F("widevane"))) {
+    string = map_list(_currentValues.wideVane, _mappings.wideVane);
+  } else
+  if (equals(command, F("power"))) {
+    string = map_list(_currentValues.power, _mappings.power);
+  } else
+  if (equals(command, F("mode"))) {
+    string = map_list(_currentValues.mode, _mappings.mode);
+  } else
+  if (equals(command, F("fan"))) {
+    string = map_list(_currentValues.fan, _mappings.fan);
+  } else
+  if (equals(command, F("vane"))) {
+    string = map_list(_currentValues.vane, _mappings.vane);
+  } else
+  if (equals(command, F("isee"))) {
+    string = _currentValues.iSee ? '1' : '0';
+  } else
+  if (equals(command, F("temperature"))) {
+    string = toString(_currentValues.temperature, 1);
+  } else
+  if (_includeStatus && equals(command, F("operating"))) {
+    string = _currentValues.operating ? '1' : '0';
+  } else
+  if (_includeStatus && equals(command, F("compressorfrequency"))) {
+    string = _currentValues.compressorFrequency;
+  } else
+  if (equals(command, F("remotetemperature"))) {
+    string = toString(_currentValues.remoteTemperature, 1);
+  } else {
+    success = false;
+  }
 
     # undef map_list
 
-  return true;
+  return success;
 }
 
 void P093_data_struct::write(const String& command, const String& value) {
     # define lookup(x, list, placeholder) findByMapping(x, list, sizeof(list) / sizeof(Tuple), placeholder)
 
-  if (command.equals(F("temperature"))) {
+  if (equals(command, F("temperature"))) {
     float temperature = 0;
 
     if (string2float(value, temperature) && (temperature >= 16) && (temperature <= 31)) {
       _wantedSettings.temperature = temperature;
       _writeStatus.set(Temperature);
     }
-  } else if ((command.equals(F("power"))) && lookup(value, _mappings.power, _wantedSettings.power)) {
+  } else if ((equals(command, F("power"))) && lookup(value, _mappings.power, _wantedSettings.power)) {
     _writeStatus.set(Power);
-  } else if ((command.equals(F("mode"))) && lookup(value, _mappings.mode, _wantedSettings.mode)) {
+  } else if ((equals(command, F("mode"))) && lookup(value, _mappings.mode, _wantedSettings.mode)) {
     _writeStatus.set(Mode);
-  } else if ((command.equals(F("fan"))) && lookup(value, _mappings.fan, _wantedSettings.fan)) {
+  } else if ((equals(command, F("fan"))) && lookup(value, _mappings.fan, _wantedSettings.fan)) {
     _writeStatus.set(Fan);
-  } else if ((command.equals(F("vane"))) && lookup(value, _mappings.vane, _wantedSettings.vane)) {
+  } else if ((equals(command, F("vane"))) && lookup(value, _mappings.vane, _wantedSettings.vane)) {
     _writeStatus.set(Vane);
-  } else if ((command.equals(F("widevane"))) && lookup(value, _mappings.wideVane, _wantedSettings.wideVane)) {
+  } else if ((equals(command, F("widevane"))) && lookup(value, _mappings.wideVane, _wantedSettings.wideVane)) {
     _writeStatus.set(WideVane);
+  } else if (equals(command, F("remotetemperature"))) {
+   float remotetemperature = 0;
+
+    if (string2float(value, remotetemperature)) {
+      _wantedSettings.remoteTemperature = remotetemperature;
+      _writeStatus.set(RemoteTemperature);
+    }
   }
 
     # undef lookup
@@ -250,6 +310,10 @@ void P093_data_struct::applySettingsLocally() {
   if (_writeStatus.isDirty(WideVane)) {
     _currentValues.wideVane = _wantedSettings.wideVane;
   }
+
+  if (_writeStatus.isDirty(RemoteTemperature)) {
+    _currentValues.remoteTemperature = _wantedSettings.remoteTemperature;
+  }
 }
 
 void P093_data_struct::cancelWaitingAndTransitTo(P093_data_struct::State state) {
@@ -264,7 +328,7 @@ void P093_data_struct::responseReceived() {
 void P093_data_struct::updateStatus() {
   # ifdef PLUGIN_093_DEBUG
   addLog(LOG_LEVEL_DEBUG, String(F("M-AC: US: ")) + _infoModeIndex);
-  #endif
+  # endif // ifdef PLUGIN_093_DEBUG
 
   uint8_t packet[PACKET_LEN] = { 0xfc, 0x42, 0x01, 0x30, 0x10 };
 
@@ -315,15 +379,33 @@ void P093_data_struct::applySettings() {
     packet[7] |= 0x01;
   }
 
+  if (_writeStatus.isDirty(RemoteTemperature)) {
+    memset(packet + 6, 0, 15);
+    packet[5] = 0x07;
+    if(_wantedSettings.remoteTemperature > 0) {
+      packet[6] |= 0x01;
+      _wantedSettings.remoteTemperature = _wantedSettings.remoteTemperature * 2;
+      _wantedSettings.remoteTemperature = round(_wantedSettings.remoteTemperature);
+      _wantedSettings.remoteTemperature = _wantedSettings.remoteTemperature / 2;
+      if (_tempMode) {        //units that don't support 0.5 increment 
+        packet[8] = static_cast<uint8_t>(_wantedSettings.remoteTemperature * 2.0f + 128.0f);
+      } else {                //units that do support 0.5 increment 
+        packet[7] = static_cast<uint8_t>(3.0f + ((_wantedSettings.remoteTemperature - 10.0f) * 2.0f));
+      }
+    }
+    else {
+      packet[6] = 0x00;
+      packet[8] = 0x80; //MHK1 send 80, even though it could be 00, since ControlByte is 00
+    } 
+ }
   packet[21] = checkSum(packet, 21);
-
   sendPacket(packet, PACKET_LEN);
 }
 
 void P093_data_struct::connect() {
   # ifdef PLUGIN_093_DEBUG
   addLog(LOG_LEVEL_DEBUG, String(F("M-AC: Connect ")) + getBaudRate());
-  #endif
+  # endif // ifdef PLUGIN_093_DEBUG
 
   _serial.begin(getBaudRate(), SERIAL_8E1);
   const uint8_t buffer[] = { 0xfc, 0x5a, 0x01, 0x30, 0x02, 0xca, 0x01, 0xa8 };
@@ -351,7 +433,7 @@ void P093_data_struct::addByteToReadBuffer(uint8_t value) {
   } else {
     # ifdef PLUGIN_093_DEBUG
     addLog(LOG_LEVEL_DEBUG, F("M-AC: ABTRB(0)"));
-    #endif
+    # endif // ifdef PLUGIN_093_DEBUG
     _readPos = 0;
   }
 }
@@ -376,7 +458,7 @@ bool P093_data_struct::readIncommingBytes() {
       } else {
         # ifdef PLUGIN_093_DEBUG
         addLog(LOG_LEVEL_DEBUG, String(F("M-AC: RIB(0) ")) + formatToHex(value));
-        #endif
+        # endif // ifdef PLUGIN_093_DEBUG
       }
     } else if ((_readPos <= DATA_LEN_INDEX) || (_readPos <= DATA_LEN_INDEX + _readBuffer[DATA_LEN_INDEX])) {
       // Read header + data part - data length is at index 4.
@@ -419,7 +501,7 @@ bool P093_data_struct::parseValues(const uint8_t *data, size_t length) {
   if (length == 0) {
     # ifdef PLUGIN_093_DEBUG
     addLog(LOG_LEVEL_DEBUG, F("M-AC: PV(0)"));
-    #endif
+    # endif // ifdef PLUGIN_093_DEBUG
     return false;
   }
 
@@ -470,7 +552,7 @@ bool P093_data_struct::parseValues(const uint8_t *data, size_t length) {
   }
   # ifdef PLUGIN_093_DEBUG
   addLog(LOG_LEVEL_DEBUG, F("M-AC: PV(1)"));
-  #endif
+  # endif // ifdef PLUGIN_093_DEBUG
   return false;
 }
 
@@ -482,7 +564,7 @@ P093_data_struct::State P093_data_struct::checkIncomingPacket(const uint8_t *pac
   if ((packet[2] != 0x01) || (packet[3] != 0x30)) {
     # ifdef PLUGIN_093_DEBUG
     addLog(LOG_LEVEL_DEBUG, F("M-AC: CIP(0)"));
-    #endif
+    # endif // ifdef PLUGIN_093_DEBUG
     return Invalid;
   }
 
@@ -491,7 +573,7 @@ P093_data_struct::State P093_data_struct::checkIncomingPacket(const uint8_t *pac
   if (calculatedChecksum != checksum) {
     # ifdef PLUGIN_093_DEBUG
     addLog(LOG_LEVEL_DEBUG, String(F("M-AC: CIP(1) ")) + calculatedChecksum);
-    #endif
+    # endif // ifdef PLUGIN_093_DEBUG
     return Invalid;
   }
 

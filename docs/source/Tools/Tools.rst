@@ -144,7 +144,7 @@ All these values are described in great detail in the Advanced section, where th
 
 * **Force WiFi B/G**:	Shows whether the ESPEasy node is forced into 802.11b/g mode.
 * **Restart WiFi Lost Conn**:	Shows whether the ESPEasy node is configured to restart the WiFi radio when connection is lost. When reporting false (the default), the WiFi radio is not restarted, but it just retries to connect to WiFi.
-* **Force WiFi No Sleep**:	``true`` indicates the WiFi radio is not allowed to enter low power mode to conserve energy.
+* **Force WiFi No Sleep**:	``true`` indicates the WiFi radio is not allowed to enter low power mode to conserve energy. The ESP may need to reconnect or sometimes even reboot to activate a change of this setting. It may sometimes not be able to reconnect on its own when changed, so be careful when changing this.
 * **Periodical send Gratuitous ARP**:	``true`` indicates the ESPEasy node will send Gratuitous ARP packets to improve reachability from the network to the node.
 * **Connection Failure Threshold**:	Counter indicating the number of failed connection attempts needed to perform a reboot.
 * **Max WiFi TX Power**:	The set maximum TX power in dBm.
@@ -153,6 +153,13 @@ All these values are described in great detail in the Advanced section, where th
 * **Send With Max TX Power**:	``true`` indicates the WiFi TX power will not be changed and thus is sending at maximum TX power for the active WiFi mode (802.11 b/g/n)
 * **Extra WiFi scan loops**:	The set number of extra scans of all channels when a WiFi scan is needed.
 * **Use Last Connected AP from RTC**:	``false`` means the ESPEasy node needs to scan at reboot and cannot reuse the last used connection before the reboot.
+* **Extra Wait WiFi Connect**: ``true`` means there is an extra wait upto 1000 msec after initiating a connection to an access point. This can be useful when connecting to some FritzBox access points or routers. (Added: 2023/04/05)
+* **Enable SDK WiFi Auto Reconnect**: ``true`` means the Espressif SDK will automatically attempt a reconnect when a connection is briefly lost. Access points (like TP-Link Omada) with "Band Steering" enabled may trigger a quick disconnect to force nodes to connect on the 5 GHz band. (Added: 2023/04/05)
+* **Hidden SSID Slow Connect**: ``true`` Connect per found hidden SSID to an access point. Needed for some APs like Mikrotik. This may slow down connecting to the AP significantly. (Added: 2023/11/20)
+
+
+
+.. note:: On ESP32, WiFi TX power settings are disabled as these may cause undesired behavior and also use more power compared to using the ECO mode.
 
 Firmware
 --------
@@ -304,17 +311,44 @@ See `Log section <Tools.html#log>`_ for more detailed information.
 * SD Log Level - Log Level for sending logs to a SD card (only when included in the build)
 
 
-Serial Settings
----------------
+Serial Console Settings
+-----------------------
 
-These settings only apply to using the serial port in core ESPEasy functionality,
-like sending out logs or receiving commands via the serial port.
+ESPEasy has a command line style console.
+This console will show the logs (when Serial Log Level is not set to "None") and accept commands.
 
-* Enable Serial Port - When unchecked, logs will not be sent to the serial port and commands will not be read from it.
+This console can be accessed via a serial port.
+
+* Enable Serial Port Console - When unchecked, logs will not be sent to the serial port and commands will not be read from it.
 * Baud Rate - Baud rate of the serial port. (default: 115200)
 
-Make sure to disable the serial port here when a sensor is connected to Serial0 
-or the GPIO pins are used for something other then a serial port.
+(Serial port selection added: 2023-06-01)
+
+* Serial Port - The selected serial port to use for the console.
+* ESP RX GPIO ← TX - GPIO pin used as RX, to connect with the TX of the other device.
+* ESP TX GPIO → RX - GPIO pin used as TX, to connect with the RX of the other device.
+* Fallback to Serial 0 - (Only on ESP32-C3/S2/S3) Configure HW Serial0 port as secondary port for the ESPEasy console.
+
+GPIO pin selection will only be shown for Serial Port types which require action GPIO pins.
+For example USB CDC and HW CDC ports do not need specific GPIO pins for their configuration.
+
+See also: `Serial Helper <../Plugin/SerialHelper.html>`__
+
+.. note:: Make sure to either uncheck "Enable Serial Port Console" or configure another serial port for the console, when either HW Serial0 or its pins are used in a task.
+
+Special notes on Software Serial
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When configuring "Software Serial" as a serial port for the console, please be aware that there might be some bit errors during transmission.
+Higher baudrate will only make this problem worse and may even causes issues where entered commands are not received by ESPEasy.
+The default baud rate of 115200 is for sure too high for software serial, regardless the platform (ESP8266/ESP32-xx).
+
+The best baud rate for the ESPEasy Console when using Software Serial may differ per module.
+
+For example on an ESP32-S3, software serial is remarkably usable at 28800 baud.
+But the ESP32-C3 does seem to perform horrible, regardless the baud rate.
+
+Do not use multiple instances of a Software Serial port as both will greatly affect each other in a bad way when used at the same time.
 
 
 Inter-ESPEasy Network
@@ -395,6 +429,17 @@ If this is the fix, where ESPEasy is not able to resolve the lockec I2C bus on i
 
 Default: unchecked
 
+Check I2C devices when enabled
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Added: 2023-02-07
+
+To ensure that I2C connected devices work as intended, a device-available-check can be performed when the task is initialized, and when the taskdata is read every Interval seconds. If the device doesn't respond during task init, or after 10 consecutive failed reads, the task will be disabled.
+
+Default: checked
+
+NB: This option is excluded from the build if this setting is not available.
+
 Allow OTA without size-check
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -416,6 +461,13 @@ Added: 2022-09-05
 When using Dark-mode as an Operating System or Web-browser setting, the ESPEasy Web interface defaults to using a Dark theme as well. For those that prefer to use non-dark mode, or use ESPEasy in dark mode while the OS/browser is not configured that way, this can be selected here.
 
 NB: If this option is not available, the regular non-dark mode will be used.
+
+Disable Rules auto-completion
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Added: 2023-07-20
+
+When Rules auto-completion, also including syntax highlighting, is available in the build, some users have difficulty working with the auto-completion. This option disables the auto-completion, and that also inhibits the syntax highlighting as these 2 features are closely integrated.
 
 Deep Sleep Alternative
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -677,6 +729,47 @@ This is no new functionality, as it was present before and also enabled by defau
 New default value since 2021-06-20: unchecked
 
 
+Extra Wait WiFi Connect
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Added: 2023-04-05
+
+Some FritzBox routers may be difficult to connect with using Espressif modules.
+It is unclear what exactly causes these issues.
+However experiments have shown that an added delay of upto 1000 msec right after calling ``WiFi.begin()`` does improve the success rate of connecting to such access points.
+
+
+Enable SDK WiFi Auto Reconnect
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Added: 2023-04-05
+
+Some dual band access points (2.4 GHz and 5 GHz) try to balance connected nodes over these bands, based on their signal strength.
+This is called "Band Steering".
+
+WiFi clients supporting 802.11k and/or 802.11v can be redirected to another band and/or other meshed access point.
+Older WiFi clients, not supporting these protocols, will briefly be disconnected to force them to reconnect. Hopefully to another access point or frequency band.
+
+The problem is that such disconnects cause issues with Espressif modules, messing up the internal state of the WiFi.
+
+ESPEasy does act on WiFi events. But these events are not always dealt with in due time, messing up the connected state even more.
+In such cases, where "Band Steering" cannot be disabled, one can enable the Espressif SDK WiFi Auto Reconnect option.
+This will act much faster on these disconnect events. However it also seems to suppress some WiFi events.
+
+Whenever ESPEasy calls for a disconnect, or the disconnect takes longer than such a very brief disconnect initiated by the Band Steering algorithm of the access point, ESPEasy will turn off the WiFi and turn it on again as if "Restart WiFi Lost Conn" was enabled.
+
+
+Hidden SSID Slow Connect
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Added: 2023-11-20
+
+Some access points with hidden SSID do not react to a broadcast connect attempt with a given SSID.
+For example Mikrotik routers and access points only allow connecting to a hidden SSID when specifically addressed.
+This may cause a significant slow down connecting to a hidden AP when there are lots of hidden access points with a relative strong signal.
+
+This is enabled by default.
+
 
 Show JSON
 =========
@@ -794,6 +887,27 @@ Then it does not make sense to have the client timeout of that controller set to
 
 System Variables
 ================
+
+
+I2C Scan
+========
+
+To verify if any connected I2C devices are properly detected by the ESP, the I2C Scan is available. This will scan the I2C bus, and, when configured, the additional busses provided via an I2C multiplexer, for available devices.
+
+The scan is performed if the I2C ``SDA`` and ``SCL`` GPIO pins are configured on the Hardware page, and will use the configured ``Slow device Clock Speed`` setting (default: 100 kHz) during the scan, as that should be supported by any I2C device available.
+
+The output is a list of all addresses, in hexadecimal notation, and, when included in the build, the known device name(s) supported at that address. On the same condition, and when the plugin for the detected device is included in the build, the name of the plugin is also listed:
+
+Example scan showing a single device, with the Plugin included in the build:
+
+.. image:: images/Tools_I2Cscan_single_bus.png
+
+Example scan using an I2C multiplexer, showing multiple devices across multiple channels, with the plugins included in the (MAX) build:
+
+.. image:: images/Tools_I2Cscan_multiplexer.png
+
+
+.. note:: On builds that have ``LIMIT_BUILD_SIZE`` set, like the ESP8266 Collection and Display builds, the names of the supported devices and plugins are **not** included in the output, only the address(es) are listed.
 
 
 Factory Reset
@@ -941,20 +1055,73 @@ See the ``Custom-sample.h`` file for some examples.
 Allow Fetch by Command
 ----------------------
 
-This checkbox allows provisioning via commands.
-These commands are not restricted, so they can also be given via HTTP or MQTT.
+This list of checkboxes per file allows provisioning via commands.
+These ``Provision*`` commands are not restricted, so they can also be given via HTTP or MQTT.
 
 However, they can only be executed when:
 
-* Allow Fetch by Command is enabled
-* the file to download is checked
+* the file at Allow Fetch by Command is checked
+* the file at Files to Download is *also* checked
 * URL (+ optional credentials) is stored
 
 The commands are:
 
+Changed: 2023-11-18: Single-word commands split into 2 words: ``Provision,<subcmd>[,<params>]``
 
-* ``ProvisionConfig`` Fetch ``config.dat``
-* ``ProvisionSecurity`` Fetch ``security.dat``
-* ``ProvisionNotification`` Fetch ``notification.dat``
-* ``ProvisionProvision`` Fetch ``provisioning.dat``
-* ``ProvisionRules,1`` Fetch ``rules1.txt``
+* ``Provision,Config`` Fetch ``config.dat``
+* ``Provision,Security`` Fetch ``security.dat``
+* ``Provision,Notification`` Fetch ``notification.dat``
+* ``Provision,Provision`` Fetch ``provisioning.dat``
+* ``Provision,Rules,1`` Fetch ``rules1.txt``
+* ``Provision,CustomCdnUrl`` Fetch ``customcdnurl.dat`` (When the Custom CDN Url feature is included in the build.)
+
+* ``Provision,Firmware,<FirmwareBinary.bin>`` Fetch and install ``FirmwareBinary.bin`` on the unit
+
+Once the Firmware download & install is finished the outcome is completed by a generated event (gets the download filename as an argument):
+
+* ``ProvisionFirmware#Success=<FirmwareBinary.bin>`` When download and install where succesfull
+* ``ProvisionFirmware#Failed=<FirmwareBinary.bin>`` When something went wrong during download or install
+
+These events can be handled in rules, an provisioning support script could look like this:
+
+.. code-block:: none
+
+  On updateSettings Do
+    provision,provision
+    provision,config
+  Endon
+
+  On updateCredentials Do
+    provision,security  
+  Endon
+
+  On updateRules Do
+    provision,rules,1
+    provision,rules,2
+    provision,rules,3
+  Endon
+
+  On updateRulesSettings Do
+    AsyncEvent,updateSettings
+    AsyncEvent,updateRules
+    Reboot
+  Endon
+
+  // e.g.
+  // event,PerformFirmwareUpdate=firmware_max_ESP32_16M8M_LittleFS.bin
+  On PerformFirmwareUpdate=* Do
+    pwm,2,100,0,8
+    provision,firmware,%eventvalue1%
+  Endon
+
+  On provisionfirmware#success=* Do
+    gpio,2,0
+    Reboot
+  Endon
+
+  On provisionfirmware#failure Do
+    gpio,2,0
+    Reboot  
+  Endon
+
+

@@ -19,8 +19,9 @@
 
 #include "sdkconfig.h" // this sets useful config symbols, like CONFIG_IDF_TARGET_ESP32C3
 
-// ESP32C3 I2S is not supported yet due to significant changes to interface
-#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+// ESP32C3/S3 I2S is not supported yet due to significant changes to interface
+#ifndef CONFIG_SOC_RMT_TX_CANDIDATES_PER_GROUP // turn this off with something new from idf5.1
+#if !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C2)
 
 #include <string.h>
 #include <stdio.h>
@@ -126,7 +127,6 @@ static i2s_bus_t I2S[I2S_NUM_MAX] = {
 
 void IRAM_ATTR i2sDmaISR(void* arg);
 
-
 bool i2sInitDmaItems(uint8_t bus_num) {
     if (bus_num >= I2S_NUM_MAX) {
         return false;
@@ -171,26 +171,10 @@ bool i2sInitDmaItems(uint8_t bus_num) {
     I2S[bus_num].tx_queue = xQueueCreate(I2S_DMA_QUEUE_COUNT, sizeof(i2s_dma_item_t*));
     if (I2S[bus_num].tx_queue == NULL) {// memory error
         log_e("MEM ERROR!");
-        heap_caps_free(I2S[bus_num].dma_items);
+        free(I2S[bus_num].dma_items);
         I2S[bus_num].dma_items = NULL;
         return false;
     }
-    return true;
-}
-
-bool i2sDeinitDmaItems(uint8_t bus_num) {
-    if (bus_num >= I2S_NUM_MAX) {
-        return false;
-    }
-    if (!I2S[bus_num].tx_queue) {
-        return false; // nothing to deinit
-    }
-
-    vQueueDelete(I2S[bus_num].tx_queue);
-    I2S[bus_num].tx_queue = NULL;
-    heap_caps_free(I2S[bus_num].dma_items);
-    I2S[bus_num].dma_items = NULL;
-
     return true;
 }
 
@@ -224,43 +208,38 @@ esp_err_t i2sSetClock(uint8_t bus_num, uint8_t div_num, uint8_t div_b, uint8_t d
     return ESP_OK;
 }
 
-void i2sSetPins(uint8_t bus_num, int8_t out, bool invert) 
-{
-    if (bus_num >= I2S_NUM_MAX) 
-    {
+void i2sSetPins(uint8_t bus_num, int8_t out, bool invert) {
+    if (bus_num >= I2S_NUM_MAX) {
         return;
     }
 
-    int8_t outOld = I2S[bus_num].out;
+    if (out >= 0) {
+        if (I2S[bus_num].out != out) {
+            if (I2S[bus_num].out >= 0) {
+                gpio_matrix_out(I2S[bus_num].out, 0x100, invert, false);
+            }
+            I2S[bus_num].out = out;
+            pinMode(out, OUTPUT);
 
-    I2S[bus_num].out = out;
-
-    // disable old pin
-    if (outOld >= 0)
-    {
-        gpio_matrix_out(outOld, 0x100, false, false);
-        pinMode(outOld, INPUT);
-    }
-
-    if (out >= 0) 
-    {
-        pinMode(out, OUTPUT);
-
-        int i2sSignal;
+            int i2sSignal;
 #if !defined(CONFIG_IDF_TARGET_ESP32S2) && !defined(CONFIG_IDF_TARGET_ESP32C3)
 //            (I2S_NUM_MAX == 2)
-        if (bus_num == 1) 
-        {
-            i2sSignal = I2S1O_DATA_OUT23_IDX;
-        }
-        else
+            if (bus_num == 1) {
+                i2sSignal = I2S1O_DATA_OUT23_IDX;
+            }
+            else
 #endif
-        {
-            i2sSignal = I2S0O_DATA_OUT23_IDX;
-        }
+            {
+                i2sSignal = I2S0O_DATA_OUT23_IDX;
+            }
 
-        gpio_matrix_out(out, i2sSignal, invert, false);
-    } 
+            gpio_matrix_out(out, i2sSignal, invert, false);
+        }
+    } else if (I2S[bus_num].out >= 0) {
+        gpio_matrix_out(I2S[bus_num].out, 0x100, invert, false);
+        I2S[bus_num].out = -1;
+    }
+
 }
 
 bool i2sWriteDone(uint8_t bus_num) {
@@ -398,10 +377,6 @@ void i2sInit(uint8_t bus_num,
     esp_intr_enable(I2S[bus_num].isr_handle);
 }
 
-void i2sDeinit(uint8_t bus_num) {
-    i2sDeinitDmaItems(bus_num);
-}
-
 esp_err_t i2sSetSampleRate(uint8_t bus_num, uint32_t rate, uint8_t bits) {
     if (bus_num >= I2S_NUM_MAX) {
         return ESP_FAIL;
@@ -521,5 +496,6 @@ size_t i2sWrite(uint8_t bus_num, uint8_t* data, size_t len, bool copy, bool free
 }
 
 #endif // !defined(CONFIG_IDF_TARGET_ESP32C3)
+#endif //ESP_IDF_VERSION_MAJOR < 5
 #endif // defined(ARDUINO_ARCH_ESP32) 
 

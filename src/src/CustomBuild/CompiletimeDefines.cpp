@@ -112,7 +112,15 @@ const __FlashStringHelper * get_CDN_url_prefix() {
   #else
     // Some fallback tag
     // FIXME TD-er: Not sure which is better, serving the latest (which will have caching issues) or a tag which will become outdated
-    return F("https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy@mega-20220809/static/");
-    //return F("https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy/static/");
+    return F("https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy@mega/static/");
+    //return F("https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy@mega-20231013/static/");
   #endif
+}
+
+const __FlashStringHelper * getConfigurationCode() {
+  #ifndef CONFIGURATION_CODE
+    return F("");
+  #else // ifndef CONFIGURATION_CODE
+    return F(CONFIGURATION_CODE);
+  #endif // ifndef CONFIGURATION_CODE
 }

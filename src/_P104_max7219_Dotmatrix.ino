@@ -66,8 +66,17 @@
 //                                         2: dotted line, alternating, only if the bar is wider than 1 pixel
 //                                Up to 8 graph-strings can be provided and must be separated by a pipe |
 //                                The bar width is determined by the number of graph-strings
+// dot,<zone>,<r>,<c>[,0][,...] : Draw dot(s) at the row/column positions provided, adding a 0 after a coordinate will turn that dot off.
+//                                Default is to turn a dot On (no argument needed).
+//                                Row/col must fit within the zone (r = 1..8, c = 1..8 * modules), double-height parts are separate zones!
+//                                Display of the selected zone is suspended until all provided dots are drawn. No quotes are needed around
+//                                the coordinate set.
 //
 // History:
+// 2023-08-13 tonhuisman: Add Dot subcommand for pixel-drawing in a zone. Can be applied on any type of zone (so can be overwritten by the
+//                        original content when that's updated...)
+//                        Set default Hardware type to FC16, as that's the most used for modules found on Aliexpress
+// 2023-03-07 tonhuisman: Parse text to display without trimming off leading and trailing spaces
 // 2022-08-12 tonhuisman: Remove [DEVELOPMENT] tag
 // 2021-10-03 tonhuisman: Add Inverted option per zone
 // 2021-09    tonhuisman: Minor improvements, attempts to fix stack failures
@@ -137,7 +146,8 @@ boolean Plugin_104(uint8_t function, struct EventStruct *event, String& string) 
     }
 
     case PLUGIN_SET_DEFAULTS: {
-      CONFIG_PORT = -1;
+      CONFIG_PORT              = -1;
+      P104_CONFIG_HARDWARETYPE = static_cast<int>(MD_MAX72XX::moduleType_t::FC16_HW);
       break;
     }
 
@@ -205,7 +215,7 @@ boolean Plugin_104(uint8_t function, struct EventStruct *event, String& string) 
     case PLUGIN_WEBFORM_SAVE: {
       P104_data_struct *P104_data = static_cast<P104_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-      P104_CONFIG_ZONE_COUNT = getFormItemInt(F("plugin_104_zonecount"));
+      P104_CONFIG_ZONE_COUNT = getFormItemInt(F("zonecount"));
       bool createdWhileActive = false;
 
       if (nullptr == P104_data) { // Create new object if not active atm.
@@ -242,11 +252,7 @@ boolean Plugin_104(uint8_t function, struct EventStruct *event, String& string) 
       # ifdef P104_DEBUG
 
       if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-        String log;
-        log.reserve(38);
-        log  = F("dotmatrix: PLUGIN_INIT numDevices: ");
-        log += numDevices;
-        addLogMove(LOG_LEVEL_INFO, log);
+        addLogMove(LOG_LEVEL_INFO, concat(F("dotmatrix: PLUGIN_INIT numDevices: "), numDevices));
       }
       # endif // ifdef P104_DEBUG
 
@@ -294,11 +300,9 @@ boolean Plugin_104(uint8_t function, struct EventStruct *event, String& string) 
     case PLUGIN_WRITE: {
       P104_data_struct *P104_data = static_cast<P104_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-      if (nullptr == P104_data) {
-        return success;
+      if (nullptr != P104_data) {
+        success = P104_data->handlePluginWrite(event->TaskIndex, string); // process commands
       }
-
-      success = P104_data->handlePluginWrite(event->TaskIndex, string); // process commands
 
       break;
     }
@@ -306,12 +310,10 @@ boolean Plugin_104(uint8_t function, struct EventStruct *event, String& string) 
     case PLUGIN_TEN_PER_SECOND: {
       P104_data_struct *P104_data = static_cast<P104_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-      if ((nullptr == P104_data) || (nullptr == P104_data->P)) {
-        return success;
+      if ((nullptr != P104_data) && (nullptr != P104_data->P)) {
+        P104_data->P->displayAnimate(); // Keep the animations moving
+        success = true;
       }
-
-      P104_data->P->displayAnimate(); // Keep the animations moving
-      success = true;
 
       break;
     }
@@ -319,18 +321,17 @@ boolean Plugin_104(uint8_t function, struct EventStruct *event, String& string) 
     case PLUGIN_ONCE_A_SECOND: {
       P104_data_struct *P104_data = static_cast<P104_data_struct *>(getPluginTaskData(event->TaskIndex));
 
-      if ((nullptr == P104_data) || (nullptr == P104_data->P)) {
-        return success;
-      }
-
-      if (P104_data->P->displayAnimate()) {     // At least 1 zone is ready
-        for (uint8_t z = 0; z < P104_CONFIG_ZONE_COUNT; z++) {
-          if (P104_data->P->getZoneStatus(z)) { // If the zone is ready, see if it should be repeated
-            P104_data->checkRepeatTimer(z);
+      if ((nullptr != P104_data) && (nullptr != P104_data->P)) {
+        if (P104_data->P->displayAnimate()) {     // At least 1 zone is ready
+          for (uint8_t z = 0; z < P104_CONFIG_ZONE_COUNT; z++) {
+            if (P104_data->P->getZoneStatus(z)) { // If the zone is ready, see if it should be repeated
+              P104_data->checkRepeatTimer(z);
+            }
           }
-        }
 
-        P104_data->handlePluginOncePerSecond(event); // Update date & time contents, if needed
+          P104_data->handlePluginOncePerSecond(event); // Update date & time contents, if needed
+        }
+        success = true;
       }
     }
   }

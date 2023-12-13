@@ -22,9 +22,13 @@ uint8_t P028_data_struct::get_control_settings() const {
 }
 
 const __FlashStringHelper * P028_data_struct::getDeviceName() const {
-  switch (sensorID) {
+  return getDeviceName(sensorID);
+}
+
+const __FlashStringHelper * P028_data_struct::getDeviceName(BMx_ChipId id) {
+  switch (id) {
     case BMP280_DEVICE_SAMPLE1:
-    case BMP280_DEVICE_SAMPLE2: return F("BMP280 sample");
+    case BMP280_DEVICE_SAMPLE2: return F("sample BMP280");
     case BMP280_DEVICE:         return F("BMP280");
     case BME280_DEVICE:         return F("BME280");
     default: return F("Unknown");
@@ -102,7 +106,7 @@ bool P028_data_struct::updateMeasurements(taskIndex_t task_index) {
 
   if (loglevelActiveFor(LOG_LEVEL_INFO)) {
     log.reserve(120); // Prevent re-allocation
-    log  = getDeviceName();
+    log  = getDeviceName(sensorID);
     log += ':';
   }
   bool logAdded = false;
@@ -122,7 +126,7 @@ bool P028_data_struct::updateMeasurements(taskIndex_t task_index) {
 
     // There is some offset to apply.
     if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-      log += F(" Apply temp offset ");
+      log += F(" Apply temp offset: ");
       log += temp_offset;
       log += 'C';
     }
@@ -132,7 +136,7 @@ bool P028_data_struct::updateMeasurements(taskIndex_t task_index) {
       # ifndef LIMIT_BUILD_SIZE
 
       if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-        log += F(" humidity ");
+        log += F(" humidity: ");
         log += last_hum_val;
       }
       # endif // ifndef LIMIT_BUILD_SIZE
@@ -153,7 +157,7 @@ bool P028_data_struct::updateMeasurements(taskIndex_t task_index) {
 # ifndef LIMIT_BUILD_SIZE
 
     if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-      log += F(" temperature ");
+      log += F(" temperature: ");
       log += last_temp_val;
     }
 # endif // ifndef LIMIT_BUILD_SIZE
@@ -174,7 +178,7 @@ bool P028_data_struct::updateMeasurements(taskIndex_t task_index) {
 
   if (hasHumidity()) {
     if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-      log     += F(" dew point ");
+      log     += F(" dew point: ");
       log     += last_dew_temp_val;
       log     += 'C';
       logAdded = true;
@@ -209,8 +213,8 @@ bool P028_data_struct::check() {
           setUninitialized();
 
           if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-            String log = F("BMx280 : Detected ");
-            log += getDeviceName();
+            String log = F("BMx280: Detected ");
+            log += getDeviceName(sensorID);
             addLogMove(LOG_LEVEL_INFO, log);
           }
         }
@@ -226,7 +230,7 @@ bool P028_data_struct::check() {
 
   if (sensorID == Unknown_DEVICE) {
     if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-      String log = F("BMx280 : Unable to detect chip ID (");
+      String log = F("BMx280: Unable to detect chip ID (");
       log += chip_id;
 
       if (!wire_status) {

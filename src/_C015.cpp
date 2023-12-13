@@ -82,13 +82,13 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
   {
     case CPlugin::Function::CPLUGIN_PROTOCOL_ADD:
     {
-      Protocol[++protocolCount].Number     = CPLUGIN_ID_015;
-      Protocol[protocolCount].usesMQTT     = false;
-      Protocol[protocolCount].usesAccount  = false;
-      Protocol[protocolCount].usesPassword = true;
-      Protocol[protocolCount].usesExtCreds = true;
-      Protocol[protocolCount].defaultPort  = 80;
-      Protocol[protocolCount].usesID       = false;
+      ProtocolStruct& proto = getProtocolStruct(event->idx); //      = CPLUGIN_ID_015;
+      proto.usesMQTT     = false;
+      proto.usesAccount  = false;
+      proto.usesPassword = true;
+      proto.usesExtCreds = true;
+      proto.defaultPort  = 80;
+      proto.usesID       = false;
       break;
     }
 
@@ -120,7 +120,7 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
     case CPlugin::Function::CPLUGIN_WEBFORM_LOAD:
     {
       char thumbprint[60] = {0};
-      LoadCustomControllerSettings(event->ControllerIndex, reinterpret_cast<const uint8_t *>(&thumbprint), sizeof(thumbprint));
+      LoadCustomControllerSettings(event->ControllerIndex, reinterpret_cast<uint8_t *>(&thumbprint), sizeof(thumbprint));
 
       if (strlen(thumbprint) != 59) {
         strcpy(thumbprint, CPLUGIN_015_DEFAULT_THUMBPRINT);
@@ -137,10 +137,11 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
 
       if (isFormItemChecked(F("controllerenabled"))) {
         for (controllerIndex_t i = 0; i < CONTROLLER_MAX; ++i) {
-          protocolIndex_t ProtocolIndex = getProtocolIndex_from_ControllerIndex(i);
+          const protocolIndex_t ProtocolIndex = getProtocolIndex_from_ControllerIndex(i);
 
           if (validProtocolIndex(ProtocolIndex)) {
-            if ((i != event->ControllerIndex) && (Protocol[ProtocolIndex].Number == 15) && Settings.ControllerEnabled[i]) {
+            const cpluginID_t number = getCPluginID_from_ProtocolIndex(ProtocolIndex);
+            if ((i != event->ControllerIndex) && (number == 15) && Settings.ControllerEnabled[i]) {
               success = false;
 
               // FIXME:  this will only show a warning message and not uncheck "enabled" in webform.
@@ -172,6 +173,9 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
       if (C015_DelayHandler == nullptr) {
         break;
       }
+      if (C015_DelayHandler->queueFull(event->ControllerIndex)) {
+        break;
+      }
 
       if (!Settings.ControllerEnabled[event->ControllerIndex]) {
         break;
@@ -180,14 +184,14 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
       // Collect the values at the same run, to make sure all are from the same sample
       uint8_t valueCount = getValueCountForTask(event->TaskIndex);
 
-      
-      success = C015_DelayHandler->addToQueue(C015_queue_element(event, valueCount));
+      std::unique_ptr<C015_queue_element> element(new C015_queue_element(event, valueCount));
+      success = C015_DelayHandler->addToQueue(std::move(element));
 
       if (success) {
         // Element was added.
         // Now we try to append to the existing element
         // and thus preventing the need to create a long string only to copy it to a queue element.
-        C015_queue_element& element = C015_DelayHandler->sendQueue.back();
+        C015_queue_element& element = static_cast<C015_queue_element&>(*(C015_DelayHandler->sendQueue.back()));
 
         for (uint8_t x = 0; x < valueCount; x++)
         {
@@ -206,7 +210,7 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
           String vPinNumberStr = valueName.substring(1, 4);
           int    vPinNumber    = vPinNumberStr.toInt();
 
-          if (!(vPinNumber > 0) && (vPinNumber < 256)) {
+          if ((vPinNumber < 0) || (vPinNumber > 255)) {
             vPinNumber = -1;
           }
           if (loglevelActiveFor(LOG_LEVEL_INFO)) {
@@ -232,7 +236,7 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
           element.txt[x]  = formattedValue;
         }
       }
-      Scheduler.scheduleNextDelayQueue(ESPEasy_Scheduler::IntervalTimer_e::TIMER_C015_DELAY_QUEUE, C015_DelayHandler->getNextScheduleTime());
+      Scheduler.scheduleNextDelayQueue(SchedulerIntervalTimer_e::TIMER_C015_DELAY_QUEUE, C015_DelayHandler->getNextScheduleTime());
       break;
     }
 
@@ -249,9 +253,10 @@ bool CPlugin_015(CPlugin::Function function, struct EventStruct *event, String& 
 
 // Uncrustify may change this into multi line, which will result in failed builds
 // *INDENT-OFF*
-bool do_process_c015_delay_queue(int controller_plugin_number, const C015_queue_element& element, ControllerSettingsStruct& ControllerSettings) {
+bool do_process_c015_delay_queue(int controller_number, const Queue_element_base& element_base, ControllerSettingsStruct& ControllerSettings) {
+  const C015_queue_element& element = static_cast<const C015_queue_element&>(element_base);
 // *INDENT-ON*
-  if (!Settings.ControllerEnabled[element.controller_idx]) {
+  if (!Settings.ControllerEnabled[element._controller_idx]) {
     // controller has been disabled. Answer true to flush queue.
     return true;
   }
@@ -260,7 +265,7 @@ bool do_process_c015_delay_queue(int controller_plugin_number, const C015_queue_
     return false;
   }
 
-  if (!Blynk_keep_connection_c015(element.controller_idx, ControllerSettings)) {
+  if (!Blynk_keep_connection_c015(element._controller_idx, ControllerSettings)) {
     return false;
   }
 
@@ -457,7 +462,7 @@ BLYNK_WRITE_DEFAULT() {
   if (Settings.UseRules) {
     String eventCommand = F("blynkv");
     eventCommand += vPin;
-    eventCommand += F("=");
+    eventCommand += '=';
     eventCommand += pinValue;
     eventQueue.addMove(std::move(eventCommand));
   }

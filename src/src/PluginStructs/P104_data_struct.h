@@ -33,6 +33,7 @@
 # define P104_USE_BAR_GRAPH                  // Enables the use of Bar-graph feature
 # define P104_USE_ZONE_ACTIONS               // Enables the use of Actions per zone (New above/New below/Delete)
 # define P104_USE_ZONE_ORDERING              // Enables the use of Zone ordering (Numeric order (1..n)/Display order (n..1))
+# define P104_USE_DOT_SET                    // Enables the use of Dot-set feature
 
 # define P104_ADD_SETTINGS_NOTES             // Adds some notes on the Settings page
 
@@ -179,8 +180,8 @@
 # define P104_CONFIG_ZONE_COUNT   PCONFIG(0)
 # define P104_CONFIG_TOTAL_UNITS  PCONFIG(1)
 # define P104_CONFIG_HARDWARETYPE PCONFIG(2)
-# define P104_CONFIG_FLAGS        PCONFIG_LONG(0)
-# define P104_CONFIG_DATETIME     PCONFIG_LONG(1)
+# define P104_CONFIG_FLAGS        PCONFIG_ULONG(0)
+# define P104_CONFIG_DATETIME     PCONFIG_ULONG(1)
 
 # define P104_CONFIG_FLAG_CLEAR_DISABLE 0
 # define P104_CONFIG_FLAG_LOG_ALL_TEXT  1
@@ -326,11 +327,11 @@ struct P104_zone_struct {
   int8_t   brightness    = -1;
   int8_t   inverted      = 0;
   int8_t   _lastChecked  = -1;
-  # ifdef P104_USE_BAR_GRAPH
+  # if defined(P104_USE_BAR_GRAPH) || defined(P104_USE_DOT_SET)
   uint16_t _lower       = 0u;
   uint16_t _upper       = 0u; // lower and upper pixel numbers
   uint8_t  _startModule = 0u; // starting module, end module is _startModule + size - 1
-  # endif // ifdef P104_USE_BAR_GRAPH
+  # endif // if defined(P104_USE_BAR_GRAPH) || defined(P104_USE_DOT_SET)
 };
 
 # ifdef P104_USE_BAR_GRAPH
@@ -338,12 +339,12 @@ struct P104_bargraph_struct {
   P104_bargraph_struct() = delete; // Not used, so leave out explicitly
   P104_bargraph_struct(uint8_t _graph) : graph(_graph) {}
 
-  double  value = 0.0;
-  double  max   = 0.0;
-  double  min   = 0.0;
-  uint8_t graph;
-  uint8_t barType   = 0u;
-  uint8_t direction = 0u;
+  ESPEASY_RULES_FLOAT_TYPE value{};
+  ESPEASY_RULES_FLOAT_TYPE max{};
+  ESPEASY_RULES_FLOAT_TYPE min{};
+  uint8_t                  graph;
+  uint8_t                  barType   = 0u;
+  uint8_t                  direction = 0u;
 };
 # endif // ifdef P104_USE_BAR_GRAPH
 
@@ -384,14 +385,16 @@ private:
   bool saveSettings();
   void updateZone(uint8_t                 zone,
                   const P104_zone_struct& zstruct);
-  # ifdef P104_USE_BAR_GRAPH
+  # if defined(P104_USE_BAR_GRAPH) || defined(P104_USE_DOT_SET)
   MD_MAX72XX *pM = nullptr;
-  void displayBarGraph(uint8_t                 zone,
-                       const P104_zone_struct& zstruct,
-                       const String          & graph);
   void modulesOnOff(uint8_t                    start,
                     uint8_t                    end,
                     MD_MAX72XX::controlValue_t on_off);
+  # endif // if defined(P104_USE_BAR_GRAPH) || defined(P104_USE_DOT_SET)
+  # ifdef P104_USE_BAR_GRAPH
+  void displayBarGraph(uint8_t                 zone,
+                       const P104_zone_struct& zstruct,
+                       const String          & graph);
   void drawOneBarGraph(uint16_t lower,
                        uint16_t upper,
                        int16_t  pixBottom,
@@ -402,9 +405,15 @@ private:
                        uint8_t  row);
   # endif // ifdef P104_USE_BAR_GRAPH
 
-  void   displayOneZoneText(uint8_t                 currentZone,
-                            const P104_zone_struct& idx,
-                            const String          & text);
+  # ifdef P104_USE_DOT_SET
+  void displayDots(uint8_t                 zone,
+                   const P104_zone_struct& zstruct,
+                   const String          & dots);
+  # endif // ifdef P104_USE_DOT_SET
+
+  void displayOneZoneText(uint8_t                 currentZone,
+                          const P104_zone_struct& idx,
+                          const String          & text);
 
   String error;
 
@@ -427,6 +436,38 @@ private:
   // time/date stuff
   char szTimeL[P104_MAX_MESG] = { 0 }; // dd-mm-yyyy hh:mm:ss\0
   char szTimeH[P104_MAX_MESG] = { 0 };
+
+  int8_t getTime(char *psz,
+                 bool  seconds  = false,
+                 bool  colon    = true,
+                 bool  time12h  = false,
+                 bool  timeAmpm = false);
+  void getDate(char         *psz,
+               bool          showYear = true,
+               bool          fourDgt  = false
+               # ifdef       P104_USE_DATETIME_OPTIONS
+               ,
+               const uint8_t dateFmt = 0
+               ,
+               const uint8_t dateSep = 0
+               # endif // ifdef P104_USE_DATETIME_OPTIONS
+               );
+  uint8_t getDateTime(char         *psz,
+                      bool          colon    = true,
+                      bool          time12h  = false,
+                      bool          timeAmpm = false,
+                      bool          fourDgt  = false
+                      # ifdef       P104_USE_DATETIME_OPTIONS
+                      ,
+                      const uint8_t dateFmt = 0
+                      ,
+                      const uint8_t dateSep = 0
+                      # endif // ifdef P104_USE_DATETIME_OPTIONS
+                      );
+  # if defined(P104_USE_NUMERIC_DOUBLEHEIGHT_FONT) || defined(P104_USE_FULL_DOUBLEHEIGHT_FONT)
+  void createHString(String& string);
+  # endif // if defined(P104_USE_NUMERIC_DOUBLEHEIGHT_FONT) || defined(P104_USE_FULL_DOUBLEHEIGHT_FONT)
+  void reverseStr(String& str);
 };
 
 #endif // ifdef USES_P104

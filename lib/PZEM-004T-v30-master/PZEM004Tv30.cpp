@@ -31,21 +31,30 @@
 
 #define PZEM_BAUD_RATE 9600
 
-extern HardwareSerial Serial;
+//extern HardwareSerial Serial;
 ESPeasySerial *swSerial = nullptr;
 
-#define DEBUG
+#define PZEM_DEBUG 0
+
+#ifndef PZEM_DEBUG_SERIAL_0
+#if defined(ESP32) && !defined(NO_GLOBAL_INSTANCES) && !defined(NO_GLOBAL_SERIAL) && ARDUINO_USB_CDC_ON_BOOT // Serial used for USB CDC
+  #define PZEM_DEBUG_SERIAL_0 Serial0
+#else
+  #define PZEM_DEBUG_SERIAL_0 Serial
+#endif
+#endif
+
 
 // Debugging function;
 void printBuf(uint8_t* buffer, uint16_t len){
-#ifdef DEBUG
+#if PZEM_DEBUG
     for(uint16_t i = 0; i < len; i++){
         char temp[6];
         sprintf(temp, "%.2x ", buffer[i]);
-        Serial.print(temp);
+        PZEM_DEBUG_SERIAL_0.print(temp);
 
     }
-    Serial.println();
+    PZEM_DEBUG_SERIAL_0.println();
 #endif
 }
 
@@ -391,6 +400,8 @@ void PZEM004Tv30::setCRC(uint8_t *buf, uint16_t len){
     buf[len - 1] = (crc >> 8) & 0xFF; // High byte second
 }
 
+
+// FIXME TD-er: Should consider using ModbusRTU_struct::ModRTU_CRC  (crcTable alone: 512 bytes, ModRTU_CRC: 56 bytes)
 
 /*! * PZEM004Tv30::CRC16 *
  * Calculate the CRC16-Modbus for a buffer

@@ -6,6 +6,7 @@
 // #######################################################################################################
 
 /** Changelog:
+ * 2023-11-24 tonhuisman: Add Device flag for I2CMax100kHz as this sensor won't work at 400 kHz
  * 2022-05-08 tonhuisman: Use ESPEasy core I2C functions where possible
  *                        Add support for use of the Analog output pin and 'analogout,<value>' command
  *                        Add configuration of all possible analog input modes
@@ -47,6 +48,7 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
       Device[deviceCount].TimerOption        = true;
       Device[deviceCount].GlobalSyncOption   = true;
       Device[deviceCount].OutputDataType     = Output_Data_type_t::Simple;
+      Device[deviceCount].I2CMax100kHz       = true; // Max 100 kHz allowed/supported
       break;
     }
 
@@ -58,17 +60,7 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
 
     case PLUGIN_GET_DEVICEVALUENAMES:
     {
-      for (uint8_t i = 0; i < VARS_PER_TASK; ++i) {
-        if (i < P007_NR_OUTPUT_VALUES) {
-          safe_strncpy(
-            ExtraTaskSettings.TaskDeviceValueNames[i],
-            Plugin_valuename(F(PLUGIN_VALUENAME1_007), i, true),
-            sizeof(ExtraTaskSettings.TaskDeviceValueNames[i]));
-          ExtraTaskSettings.TaskDeviceValueDecimals[i] = 2;
-        } else {
-          ZERO_FILL(ExtraTaskSettings.TaskDeviceValueNames[i]);
-        }
-      }
+      ExtraTaskSettings.populateDeviceValueNamesSeq(F(PLUGIN_VALUENAME1_007), P007_NR_OUTPUT_VALUES, 2, true);
       break;
     }
 
@@ -94,10 +86,6 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
     {
       PCONFIG(P007_SENSOR_TYPE_INDEX) = static_cast<uint8_t>(Sensor_VType::SENSOR_TYPE_SINGLE);
 
-      for (uint8_t i = 0; i < VARS_PER_TASK; ++i) {
-        ExtraTaskSettings.TaskDeviceValueDecimals[i] = 2;
-      }
-
       success = true;
       break;
     }
@@ -108,19 +96,19 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
       const uint8_t i2cAddressValues[] = { 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f };
 
       if (function == PLUGIN_WEBFORM_SHOW_I2C_PARAMS) {
-        String  portNames[4];
-        int     portValues[4];
-        uint8_t unit    = (CONFIG_PORT - 1) / 4;
-        uint8_t port    = CONFIG_PORT - (unit * 4);
-        uint8_t address = 0x48 + unit;
+        String portNames[4];
+        int    portValues[4];
+        const uint8_t unit    = (CONFIG_PORT - 1) / 4;
+        const uint8_t port    = CONFIG_PORT - (unit * 4);
+        const uint8_t address = 0x48 + unit;
 
         for (uint8_t x = 0; x < 4; x++) {
           portValues[x] = x + 1;
           portNames[x]  = 'A';
           portNames[x] += x;
         }
-        addFormSelectorI2C(F("plugin_007_i2c"), 8, i2cAddressValues, address);
-        addFormSelector(F("Port"), F("plugin_007_port"), 4, portNames, portValues, port);
+        addFormSelectorI2C(F("pi2c"), 8, i2cAddressValues, address);
+        addFormSelector(F("Port"), F("pport"), 4, portNames, portValues, port);
         addFormNote(F("Selected Port value will be stored in first 'Values' field and consecutively for 'Number Output Values' &gt; Single."));
       } else {
         success = intArrayContains(8, i2cAddressValues, event->Par1);
@@ -128,6 +116,16 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
 
       break;
     }
+
+    # if FEATURE_I2C_GET_ADDRESS
+    case PLUGIN_I2C_GET_ADDRESS:
+    {
+      const uint8_t unit = (CONFIG_PORT - 1) / 4;
+      event->Par1 = 0x48 + unit;
+      success     = true;
+      break;
+    }
+    # endif // if FEATURE_I2C_GET_ADDRESS
 
     case PLUGIN_WEBFORM_LOAD:
     {
@@ -145,9 +143,9 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
         0b00100000,
         0b00110000,
       };
-      addFormSelector(F("Input mode"), F("plugin_007_input_mode"), 4, inputModeOptions, inputModeValues, P007_INPUT_MODE);
+      addFormSelector(F("Input mode"), F("input_mode"), 4, inputModeOptions, inputModeValues, P007_INPUT_MODE);
 
-      addFormCheckBox(F("Enable Analog output (AOUT)"), F("plugin_007_output_mode"), P007_OUTPUT_MODE == P007_OUTPUT_ENABLED);
+      addFormCheckBox(F("Enable Analog output (AOUT)"), F("output_mode"), P007_OUTPUT_MODE == P007_OUTPUT_ENABLED);
 
       success = true;
       break;
@@ -158,12 +156,12 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
       if (PCONFIG(P007_SENSOR_TYPE_INDEX) == 0) {
         PCONFIG(P007_SENSOR_TYPE_INDEX) = static_cast<uint8_t>(Sensor_VType::SENSOR_TYPE_SINGLE);
       }
-      uint8_t i2c  = getFormItemInt(F("plugin_007_i2c"));
-      uint8_t port = getFormItemInt(F("plugin_007_port"));
+      uint8_t i2c  = getFormItemInt(F("pi2c"));
+      uint8_t port = getFormItemInt(F("pport"));
       CONFIG_PORT = (((i2c - 0x48) << 2) + port);
 
-      P007_INPUT_MODE  = getFormItemInt(F("plugin_007_input_mode"));
-      P007_OUTPUT_MODE = isFormItemChecked(F("plugin_007_output_mode")) ? P007_OUTPUT_ENABLED : 0;
+      P007_INPUT_MODE  = getFormItemInt(F("input_mode"));
+      P007_OUTPUT_MODE = isFormItemChecked(F("output_mode")) ? P007_OUTPUT_ENABLED : 0;
 
       success = true;
       break;
@@ -177,13 +175,14 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
 
     case PLUGIN_READ:
     {
-      uint8_t unit    = (CONFIG_PORT - 1) / 4;
-      uint8_t port    = CONFIG_PORT - (unit * 4);
-      uint8_t address = 0x48 + unit;
+      const uint8_t unit    = (CONFIG_PORT - 1) / 4;
+      uint8_t port          = CONFIG_PORT - (unit * 4);
+      const uint8_t address = 0x48 + unit;
 
       uint8_t var = 0;
+      const uint8_t valueCount = P007_NR_OUTPUT_VALUES;
 
-      for (; var < P007_NR_OUTPUT_VALUES; ++port, ++var) {
+      for (; var < valueCount; ++port, ++var) {
         if (port <= 4) { // Only read available ports, hardwired limited to 4
           // Setup all required bits to the config register
           uint8_t configRegister = port - 1;
@@ -232,7 +231,7 @@ boolean Plugin_007(uint8_t function, struct EventStruct *event, String& string)
       String command = parseString(string, 1);
 
       if ((P007_OUTPUT_MODE == P007_OUTPUT_ENABLED) &&
-          command.equals(F("analogout")) &&
+          equals(command, F("analogout")) &&
           (event->Par1 >= 0) && (event->Par1 <= 255)) {
         uint8_t unit    = (CONFIG_PORT - 1) / 4;
         uint8_t address = 0x48 + unit;

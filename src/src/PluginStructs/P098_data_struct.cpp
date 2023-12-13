@@ -8,8 +8,6 @@
 
 # include "../Helpers/Hardware.h"
 
-# define GPIO_PLUGIN_ID  1
-
 
 const __FlashStringHelper * P098_config_struct::toString(P098_config_struct::PWM_mode_type PWM_mode) {
   switch (PWM_mode) {
@@ -89,11 +87,13 @@ bool P098_data_struct::loop()
       return true;
     case P098_data_struct::State::RunFwd:
     {
+      updatePosition();
       checkLimit(limitB);
       break;
     }
     case P098_data_struct::State::RunRev:
     {
+      updatePosition();
       checkLimit(limitA);
       break;
     }
@@ -115,7 +115,7 @@ bool P098_data_struct::homePosSet() const
 
 bool P098_data_struct::canRun()
 {
-  if (!homePosSet()) { return false; }
+  if (checkValidPortRange(PLUGIN_GPIO, _config.limitA.gpio) && !homePosSet()) { return false; }
 
   switch (state) {
     case P098_data_struct::State::Idle:
@@ -171,6 +171,8 @@ void P098_data_struct::stop()
 {
   setPinState(_config.motorFwd, 0);
   setPinState(_config.motorRev, 0);
+
+  lastVirtualSpeedApplied_us = 0;
 }
 
 int P098_data_struct::getPosition() const
@@ -200,6 +202,10 @@ void P098_data_struct::getLimitSwitchPositions(int& limitApos, int& limitBpos) c
 
 void P098_data_struct::startMoving()
 {
+  if(pos_dest == 0) {
+    pos_overshoot = -_config.pos0supplement;
+  }
+
   // Stop first, to make sure both outputs will not be set high
   stop();
 
@@ -212,6 +218,44 @@ void P098_data_struct::startMoving()
   }
   // Touch the timer, so it will not immediately timeout.
   enc_lastChanged_us = getMicros64();
+
+  if(_config.virtualSpeed > 0) {
+    lastVirtualSpeedApplied_us = enc_lastChanged_us;
+  }
+}
+
+void P098_data_struct::updatePosition()
+{
+  if(lastVirtualSpeedApplied_us == 0) {
+    return; 
+  }
+
+  int direction = 0;
+  switch (state) {
+    case P098_data_struct::State::RunFwd:
+    {
+      direction = 1;
+      break;
+    }
+    case P098_data_struct::State::RunRev:
+    {
+      direction = -1;
+      break;
+    }
+    default:
+      return;
+  }
+
+  uint64_t time = getMicros64();
+
+  uint64_t steps = ((time-lastVirtualSpeedApplied_us)*((uint64_t)_config.virtualSpeed))/1000ul;
+  if(_config.PWM_mode == P098_config_struct::PWM_mode_type::NoPWM) {
+    position += direction*steps;
+  } else {
+    position += direction*steps*_config.pwm_duty_cycle/1023; // pwm range is 1023
+  }
+  
+  lastVirtualSpeedApplied_us = time;
 }
 
 void P098_data_struct::checkLimit(volatile P098_limit_switch_state& switch_state)
@@ -243,6 +287,7 @@ void P098_data_struct::checkPosition()
 
   if (mustStop) {
     stop();
+    position -= pos_overshoot;
     pos_overshoot = 0;
     state = P098_data_struct::State::StopPosReached;
 
@@ -261,12 +306,12 @@ void P098_data_struct::setPinState(const P098_GPIO_config& gpio_config, int8_t s
   uint8_t mode = PIN_MODE_OUTPUT;
 
   state = state == 0 ? gpio_config.low() : gpio_config.high();
-  uint32_t key = createKey(GPIO_PLUGIN_ID, gpio_config.gpio);
+  uint32_t key = createKey(PLUGIN_GPIO, gpio_config.gpio);
 
   if (globalMapPortStatus[key].mode != PIN_MODE_OFFLINE)
   {
     int8_t currentState;
-    GPIO_Read(GPIO_PLUGIN_ID, gpio_config.gpio, currentState);
+    GPIO_Read(PLUGIN_GPIO, gpio_config.gpio, currentState);
 
     if (currentState == -1) {
       mode  = PIN_MODE_OFFLINE;
@@ -278,7 +323,7 @@ void P098_data_struct::setPinState(const P098_GPIO_config& gpio_config, int8_t s
         if (mode == PIN_MODE_OUTPUT)  {
           createAndSetPortStatus_Mode_State(key, mode, state);
           GPIO_Write(
-            GPIO_PLUGIN_ID,
+            PLUGIN_GPIO,
             gpio_config.gpio,
             state,
             mode);
@@ -301,7 +346,7 @@ void P098_data_struct::setPinState(const P098_GPIO_config& gpio_config, int8_t s
           // Turn off PWM mode too
           createAndSetPortStatus_Mode_State(key, PIN_MODE_OUTPUT, state);
           GPIO_Write(
-            GPIO_PLUGIN_ID,
+            PLUGIN_GPIO,
             gpio_config.gpio,
             state,
             PIN_MODE_OUTPUT);
@@ -316,7 +361,7 @@ void P098_data_struct::setPinState(const P098_GPIO_config& gpio_config, int8_t s
 
 bool P098_data_struct::setPinMode(const P098_GPIO_config& gpio_config)
 {
-  if (checkValidPortRange(GPIO_PLUGIN_ID, gpio_config.gpio)) {
+  if (checkValidPortRange(PLUGIN_GPIO, gpio_config.gpio)) {
     pinMode(gpio_config.gpio, gpio_config.pullUp ? INPUT_PULLUP : INPUT);
     return true;
   }

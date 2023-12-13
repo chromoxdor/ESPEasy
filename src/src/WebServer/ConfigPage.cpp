@@ -80,7 +80,8 @@ void handle_config() {
     copyFormPassword(F("key2"),  SecuritySettings.WifiKey2,  sizeof(SecuritySettings.WifiKey2));
 
     // Hidden SSID
-    Settings.IncludeHiddenSSID(isFormItemChecked(F("hiddenssid")));
+    Settings.IncludeHiddenSSID(isFormItemChecked(LabelType::CONNECT_HIDDEN_SSID));
+    Settings.HiddenSSID_SlowConnectPerBSSID(isFormItemChecked(LabelType::HIDDEN_SSID_SLOW_CONNECT));
 
     // Access point password.
     copyFormPassword(F("apkey"), SecuritySettings.WifiAPKey, sizeof(SecuritySettings.WifiAPKey));
@@ -117,9 +118,7 @@ void handle_config() {
 
     #ifdef USES_ESPEASY_NOW
     for (int peer = 0; peer < ESPEASY_NOW_PEER_MAX; ++peer) {
-      String id = F("peer");
-      id += String(peer);
-      String peer_mac  = webArg(id);
+      String peer_mac = webArg(concat(F("peer"), peer));
       if (peer_mac.length() == 0) {
         peer_mac = F("00:00:00:00:00:00");
       }
@@ -148,6 +147,9 @@ void handle_config() {
     webArg2ip(F("espethsubnet"),  Settings.ETH_Subnet);
     webArg2ip(F("espethdns"),     Settings.ETH_DNS);
 #endif // if FEATURE_ETHERNET
+    #if FEATURE_ALTERNATIVE_CDN_URL
+    set_CDN_url_custom(webArg(F("alturl")));
+    #endif // if FEATURE_ALTERNATIVE_CDN_URL
     addHtmlError(SaveSettings());
   }
 
@@ -159,7 +161,7 @@ void handle_config() {
   Settings.Name[25]             = 0;
   SecuritySettings.Password[25] = 0;
   addFormTextBox(F("Unit Name"), F("name"), Settings.Name, 25);
-  addFormNote(String(F("Hostname: ")) + NetworkCreateRFCCompliantHostname());
+  addFormNote(concat(F("Hostname: "), NetworkCreateRFCCompliantHostname()));
   addFormNumericBox(F("Unit Number"), F("unit"), Settings.Unit, 0, UNIT_NUMBER_MAX);
   addFormCheckBox(F("Append Unit Number to hostname"), F("appendunittohostname"), Settings.appendUnitToHostname());
   addFormPasswordBox(F("Admin Password"), F("password"), SecuritySettings.Password, 25);
@@ -172,8 +174,11 @@ void handle_config() {
   addFormPasswordBox(F("Fallback WPA Key"), F("key2"), SecuritySettings.WifiKey2, 63);
   addFormNote(F("WPA Key must be at least 8 characters long"));
 
-  addFormCheckBox(F("Include Hidden SSID"), F("hiddenssid"), Settings.IncludeHiddenSSID());
+  addFormCheckBox(LabelType::CONNECT_HIDDEN_SSID,      Settings.IncludeHiddenSSID());
   addFormNote(F("Must be checked to connect to a hidden SSID"));
+  
+  addFormCheckBox(LabelType::HIDDEN_SSID_SLOW_CONNECT,      Settings.HiddenSSID_SlowConnectPerBSSID());
+  addFormNote(F("Required for some AP brands like Mikrotik to connect to hidden SSID"));
 
   addFormSeparator(2);
   addFormPasswordBox(F("WPA AP Mode Key"), F("apkey"), SecuritySettings.WifiAPKey, 63);
@@ -228,11 +233,9 @@ void handle_config() {
 #ifdef USES_ESPEASY_NOW
   addFormSubHeader(F("ESPEasy-NOW"));
   for (int peer = 0; peer < ESPEASY_NOW_PEER_MAX; ++peer) {
-    String label = F("Peer ");
-    label += String(peer + 1);
-    String id = F("peer");
-    id += String(peer);
-    addFormMACBox(label, id, SecuritySettings.EspEasyNowPeerMAC[peer]);
+    addFormMACBox(concat(F("Peer "), peer + 1),
+                  concat(F("peer"), peer), 
+                  SecuritySettings.EspEasyNowPeerMAC[peer]);
 
     bool match_STA;
     const NodeStruct* nodeInfo = Nodes.getNodeByMac(SecuritySettings.EspEasyNowPeerMAC[peer], match_STA);
@@ -256,15 +259,21 @@ void handle_config() {
   int dsmax = getDeepSleepMax();
   addFormNumericBox(F("Sleep time"), F("delay"), Settings.Delay, 0, dsmax); // limited by hardware
   {
-    String maxSleeptimeUnit = F("sec (max: ");
-    maxSleeptimeUnit += String(dsmax);
-    maxSleeptimeUnit += ')';
-    addUnit(maxSleeptimeUnit);
+    addUnit(concat(F("sec (max: "), dsmax) + ')');
   }
 
   addFormCheckBox(F("Sleep on connection failure"), F("deepsleeponfail"), Settings.deepSleepOnFail);
 
   addFormSeparator(2);
+
+  #if FEATURE_ALTERNATIVE_CDN_URL
+  addFormSubHeader(F("CDN (Content delivery network)"));
+
+  addFormTextBox(F("Custom CDN URL"), F("alturl"), get_CDN_url_custom(), 255);
+  addFormNote(concat(F("Leave empty for default CDN url: "), get_CDN_url_prefix()));
+
+  addFormSeparator(2);
+  #endif // if FEATURE_ALTERNATIVE_CDN_URL
 
   html_TR_TD();
   html_TD();

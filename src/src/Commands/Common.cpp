@@ -5,8 +5,6 @@
 
 #include "../../ESPEasy_common.h"
 
-#include "../DataStructs/ESPEasy_EventStruct.h"
-#include "../DataTypes/EventValueSource.h"
 
 #include "../ESPEasyCore/ESPEasyWifi.h"
 #include "../ESPEasyCore/Serial.h"
@@ -17,40 +15,29 @@
 
 
 // Simple function to return "Ok", to avoid flash string duplication in the firmware.
-const __FlashStringHelper * return_command_success()
+const __FlashStringHelper * return_command_success_flashstr() { return F("\nOK"); }
+const __FlashStringHelper * return_command_failed_flashstr() { return F("\nFailed"); }
+
+const __FlashStringHelper * return_command_boolean_result_flashstr(bool success) 
 {
-  return F("\nOK");
+    return success ? return_command_success_flashstr() : return_command_failed_flashstr();
 }
 
-const __FlashStringHelper * return_command_failed()
+
+String return_command_success()
 {
-  return F("\nFailed");
+  return return_command_success_flashstr();
 }
 
-String return_command_success_str()
+String return_command_failed()
 {
-  return return_command_success();
+  return return_command_failed_flashstr();
 }
 
-String return_command_failed_str()
-{
-  return return_command_failed();
-}
+const __FlashStringHelper * return_incorrect_nr_arguments() { return F("Too many arguments, try using quotes!"); }
+const __FlashStringHelper * return_incorrect_source() { return F("Command not allowed from this source!"); }
+const __FlashStringHelper * return_not_connected() { return F("Not connected to WiFi"); }
 
-const __FlashStringHelper * return_incorrect_nr_arguments()
-{
-  return F("Too many arguments, try using quotes!");
-}
-
-const __FlashStringHelper * return_incorrect_source()
-{
-  return F("Command not allowed from this source!");
-}
-
-const __FlashStringHelper * return_not_connected()
-{
-  return F("Not connected to WiFi");
-}
 
 String return_result(struct EventStruct *event, const String& result)
 {
@@ -58,18 +45,19 @@ String return_result(struct EventStruct *event, const String& result)
   serialPrintln(result);
 
   if (event->Source == EventValueSource::Enum::VALUE_SOURCE_SERIAL) {
-    return return_command_success_str();
+    return return_command_success();
   }
   return result;
 }
 
+
 const __FlashStringHelper * return_see_serial(struct EventStruct *event)
 {
-  if (event->Source == EventValueSource::Enum::VALUE_SOURCE_SERIAL) {
-    return return_command_success();
-  }
-  return F("Output sent to serial");
+  return (event->Source == EventValueSource::Enum::VALUE_SOURCE_SERIAL)
+    ? return_command_success_flashstr() 
+    : F("Output sent to serial");
 }
+
 
 String Command_GetORSetIP(struct EventStruct *event,
                           const __FlashStringHelper * targetDescription,
@@ -103,7 +91,7 @@ String Command_GetORSetIP(struct EventStruct *event,
     }
     return return_result(event, result);
   }
-  return return_command_success_str();
+  return return_command_success();
 }
 
 String Command_GetORSetString(struct EventStruct *event,
@@ -136,7 +124,7 @@ String Command_GetORSetString(struct EventStruct *event,
     result += target;
     return return_result(event, result);
   }
-  return return_command_success_str();
+  return return_command_success();
 }
 
 String Command_GetORSetBool(struct EventStruct *event,
@@ -158,6 +146,7 @@ String Command_GetORSetBool(struct EventStruct *event,
       if (validIntFromString(TmpStr1, tmp_int)) {
         *value = tmp_int > 0;
       }
+      else if (TmpStr1.isEmpty()) {} // Empty string not always handled nicely by strcmp_P
       else if (strcmp_P(PSTR("on"), TmpStr1.c_str()) == 0) { *value = true; }
       else if (strcmp_P(PSTR("true"), TmpStr1.c_str()) == 0) { *value = true; }
       else if (strcmp_P(PSTR("off"), TmpStr1.c_str()) == 0) { *value = false; }
@@ -168,7 +157,7 @@ String Command_GetORSetBool(struct EventStruct *event,
   if (hasArgument) {
     return return_result(event, concat(targetDescription, boolToString(*value)));
   }
-  return return_command_success_str();
+  return return_command_success();
 }
 
 #if FEATURE_ETHERNET
@@ -197,8 +186,8 @@ String Command_GetORSetETH(struct EventStruct *event,
 
 
       // WiFi/Eth mode
-      else if (TmpStr1.equals(F("wifi"))) { *value = 0; }
-      else if (TmpStr1.equals(F("ethernet"))) { *value = 1; }
+      else if (equals(TmpStr1, F("wifi"))) { *value = 0; }
+      else if (equals(TmpStr1, F("ethernet"))) { *value = 1; }
 
       // ETH clockMode
       else if (TmpStr1.startsWith(F("ext"))) { *value = 0; }
@@ -245,5 +234,5 @@ String Command_GetORSetInt8_t(struct EventStruct *event,
     result += *value;
     return return_result(event, result);
   }
-  return return_command_success_str();
+  return return_command_success();
 }

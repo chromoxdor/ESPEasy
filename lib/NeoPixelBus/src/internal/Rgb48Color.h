@@ -61,20 +61,17 @@ struct Rgb48Color : RgbColorBase
     // ------------------------------------------------------------------------
     // Construct a Rgb48Color using RgbColor
     // ------------------------------------------------------------------------
-    Rgb48Color(const RgbColor& color)
+    Rgb48Color(const RgbColor& color) 
     {
         R = (color.R == 0) ? 0 : (color.R << 8 | 0xff);
         G = (color.G == 0) ? 0 : (color.G << 8 | 0xff);
         B = (color.B == 0) ? 0 : (color.B << 8 | 0xff);
-    };
+    }
 
     // ------------------------------------------------------------------------
     // Construct a Rgb48Color using HtmlColor
     // ------------------------------------------------------------------------
-    Rgb48Color(const HtmlColor& color)
-    {
-        *this = RgbColor(color);
-    };
+    Rgb48Color(const HtmlColor& color);
 
     // ------------------------------------------------------------------------
     // Construct a Rgb48Color using HslColor
@@ -192,12 +189,12 @@ struct Rgb48Color : RgbColorBase
 private:
     inline static uint16_t _elementDim(uint16_t value, uint16_t ratio)
     {
-        return (static_cast<uint32_t>(value) * (static_cast<uint32_t>(ratio) + 1)) >> 16;
+        return (static_cast<uint32_t>(value) * (static_cast<uint32_t>(ratio) + 1)) >> 8;
     }
 
     inline static uint16_t _elementBrighten(uint16_t value, uint16_t ratio)
     { 
-        uint32_t element = ((static_cast<uint32_t>(value) + 1) << 16) / (static_cast<uint32_t>(ratio) + 1);
+        uint32_t element = ((static_cast<uint32_t>(value) + 1) << 8) / (static_cast<uint32_t>(ratio) + 1);
 
         if (element > Max)
         {

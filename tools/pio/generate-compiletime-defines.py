@@ -7,6 +7,7 @@ from datetime import date
 import datetime
 import time
 import json
+import collections
 
 
 def compute_version_date():
@@ -56,14 +57,15 @@ def get_cdn_url_prefix():
                 tag = tags[0]
                 # work-around to allow users to use files not yet available on a tagged version
                 if '20220809' in tag:
-                    return 'https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy/static/'
+                    return 'https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy@mega/static/'
                     
                 tag = tag.replace('refs/tags/','@')
                 return "https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy{0}/static/".format(tag)
         except:
-            return 'https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy/static/'
+            return 'https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy@mega/static/'
     except ImportError:
-        return 'https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy/static/'
+        return 'https://cdn.jsdelivr.net/gh/letscontrolit/ESPEasy@mega/static/'
+
 
 
 def get_git_description():
@@ -71,7 +73,9 @@ def get_git_description():
         from pygit2 import Repository
         try:
             repo = Repository('.')
-            return "{0}_{1}".format(repo.head.shorthand, repo.revparse_single('HEAD').short_id)
+            return "{0}_{1}".format(repo.head.name
+                                    .replace("refs/heads/","",1)
+                                    .replace("refs/tags/","",1), repo.revparse_single('HEAD').short_id)
         except:
             return 'No_.git_dir'
     except ImportError:
@@ -102,17 +106,19 @@ def gen_compiletime_defines(node):
     # pass SCons variables as extra keyword arguments to `env.Object()` function
     # p.s: run `pio run -t envdump` to see a list with SCons variables
 
+    defines = env["CPPDEFINES"]
+    defines.append(("SET_BUILD_BINARY_FILENAME", '\\"%s\\"' % create_binary_filename()))
+    defines.append(("SET_BOARD_NAME", '\\"%s\\"' % get_board_name()))
+    defines.append(("SET_BUILD_PLATFORM", '\\"%s\\"' % platform.platform()))
+    defines.append(("SET_BUILD_GIT_HEAD", '\\"%s\\"' % get_git_description()))
+    defines.append(("SET_BUILD_CDN_URL",  '\\"%s\\"' % get_cdn_url_prefix()))
+    defines.append(("SET_BUILD_VERSION", compute_version_date()))
+    defines.append(("SET_BUILD_UNIXTIME", create_build_unixtime()))
+    defines.append(("SET_BUILD_TIME_RFC1123", '\\"%s\\"' % create_RFC1123_build_date()))
+
     return env.Object(
         node,
-        CPPDEFINES=env["CPPDEFINES"]
-        + [("SET_BUILD_BINARY_FILENAME", '\\"%s\\"' % create_binary_filename())]
-        + [("SET_BOARD_NAME", '\\"%s\\"' % get_board_name())]
-        + [("SET_BUILD_PLATFORM", '\\"%s\\"' % platform.platform())]
-        + [("SET_BUILD_GIT_HEAD", '\\"%s\\"' % get_git_description())]
-        + [("SET_BUILD_CDN_URL",  '\\"%s\\"' % get_cdn_url_prefix())]
-        + [("SET_BUILD_VERSION", compute_version_date())]
-        + [("SET_BUILD_UNIXTIME", create_build_unixtime())]
-        + [("SET_BUILD_TIME_RFC1123", '\\"%s\\"' % create_RFC1123_build_date())],
+        CPPDEFINES=defines,
         CCFLAGS=env["CCFLAGS"]
     )
 

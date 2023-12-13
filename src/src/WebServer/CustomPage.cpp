@@ -56,7 +56,7 @@ bool handle_custom(const String& path) {
         TXBuffer.startStream();
         sendHeadandTail(F("TmplDsh"), _HEAD);
         addHtml(F("<meta http-equiv=\"refresh\" content=\"0; URL=http://"));
-        addHtml(it->second.IP().toString());
+        addHtml(formatIP(it->second.IP()));
         addHtml(F("/dashboard.esp\">"));
         sendHeadandTail(F("TmplDsh"), _TAIL);
         TXBuffer.endStream();
@@ -93,7 +93,7 @@ bool handle_custom(const String& path) {
           name += it->second.getNodeName();
         }
         else {
-          name += Settings.Name;
+          name += Settings.getName();
         }
         addSelector_Item(name, it->first, choice == it->first);
       }
@@ -189,7 +189,7 @@ bool handle_custom(const String& path) {
 
       for (taskIndex_t x = 0; x < TASKS_MAX; x++)
       {
-        if (validPluginID_fullcheck(Settings.TaskDeviceNumber[x]))
+        if (validPluginID_fullcheck(Settings.getPluginID_for_task(x)))
         {
           const deviceIndex_t DeviceIndex = getDeviceIndex_from_TaskIndex(x);
 

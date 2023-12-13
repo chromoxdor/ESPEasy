@@ -5,11 +5,24 @@
 
 #include "../DataTypes/ESPEasy_plugin_functions.h"
 
-#include <Arduino.h>
-
+#include "../DataTypes/CPluginID.h"
+#include "../DataTypes/ProtocolIndex.h"
+#include "../DataStructs/ProtocolStruct.h"
 
 struct EventStruct;
 
+protocolIndex_t getProtocolIndex_from_CPluginID_(cpluginID_t pluginID);
+cpluginID_t getCPluginID_from_ProtocolIndex_(protocolIndex_t protocolIndex);
+bool validProtocolIndex_init(protocolIndex_t protocolIndex);
+
+cpluginID_t getHighestIncludedCPluginID();
+
+ProtocolStruct& getProtocolStruct(protocolIndex_t protocolIndex);
+
+bool CPluginCall(protocolIndex_t protocolIndex, CPlugin::Function Function, struct EventStruct *event, String& string);
+
+
+void CPluginSetup();
 void CPluginInit();
 
 // Macro to forward declare the CPlugin_NNN functions.

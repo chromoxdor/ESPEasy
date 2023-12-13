@@ -2,8 +2,14 @@
 #define DATASTRUCTS_DEVICESTRUCTS_H
 
 
-#include <Arduino.h>
+#include "../../ESPEasy_common.h"
+
 #include <vector>
+
+#include "../DataTypes/DeviceIndex.h"
+#include "../DataTypes/PluginID.h"
+#include "../DataTypes/SensorVType.h"
+
 
 #define DEVICE_TYPE_SINGLE                  1 // connected through 1 datapin
 #define DEVICE_TYPE_DUAL                    2 // connected through 2 datapins
@@ -32,30 +38,6 @@
 #define I2C_FLAGS_MUX_MULTICHANNEL          1 // Allow multiple multiplexer channels when set
 
 
-enum class Sensor_VType : uint8_t {
-  SENSOR_TYPE_NONE            =    0,
-  SENSOR_TYPE_SINGLE          =    1,
-  SENSOR_TYPE_TEMP_HUM        =    2,
-  SENSOR_TYPE_TEMP_BARO       =    3,
-  SENSOR_TYPE_TEMP_HUM_BARO   =    4,
-  SENSOR_TYPE_DUAL            =    5,
-  SENSOR_TYPE_TRIPLE          =    6,
-  SENSOR_TYPE_QUAD            =    7,
-  SENSOR_TYPE_TEMP_EMPTY_BARO =    8,
-  SENSOR_TYPE_SWITCH          =   10,
-  SENSOR_TYPE_DIMMER          =   11,
-  SENSOR_TYPE_LONG            =   20,
-  SENSOR_TYPE_WIND            =   21,
-  SENSOR_TYPE_STRING          =   22,
-
-  SENSOR_TYPE_NOT_SET         = 255
-};
-
-enum class Output_Data_type_t : uint8_t {
-  Default = 0,
-  Simple, // SENSOR_TYPE_SINGLE, _DUAL, _TRIPLE, _QUAD
-  All
-};
 
 /*********************************************************************************************\
 * DeviceStruct
@@ -69,13 +51,22 @@ struct __attribute__((__packed__)) DeviceStruct
 
   bool usesTaskDevicePin(int pin) const;
 
-  bool configurableDecimals() const;
+  bool configurableDecimals() const
+  {
+    return FormulaOption || DecimalsOnly;
+  }
 
   bool isSerial() const;
 
   bool isSPI() const;
 
   bool isCustom() const;
+
+  pluginID_t getPluginID() const
+  {
+    return pluginID_t::toPluginID(Number);
+  }
+
 
   uint8_t            Number;         // Plugin ID number.   (PLUGIN_ID_xxx)
   uint8_t            Type;           // How the device is connected. e.g. DEVICE_TYPE_SINGLE => connected through 1 datapin
@@ -98,8 +89,79 @@ struct __attribute__((__packed__)) DeviceStruct
   bool ErrorStateValues   : 1;       // Support Error State Values, can be called to retrieve surrogate values when PLUGIN_READ returns false
   bool PluginStats        : 1;       // Support for PluginStats to record last N task values, show charts etc.
   bool PluginLogsPeaks    : 1;       // When PluginStats is enabled, a call to PLUGIN_READ will also check for peaks. With this enabled, the plugin must call to check for peaks itself.
+  bool PowerManager       : 1;       // Is a Power management controller (Power manager), that can be selected to be intialized *before* the SPI interface is started.
+                                     // (F.e.: M5Stack Core/Core2 needs to power the TFT before SPI can be started)
+  bool TaskLogsOwnPeaks   : 1;       // When PluginStats is enabled, a call to PLUGIN_READ will also check for peaks. With this enabled, the plugin must call to check for peaks itself.
+  bool I2CNoDeviceCheck   : 1;       // When enabled, NO I2C check will be done on the I2C address returned from PLUGIN_I2C_GET_ADDRESS function call
+  bool I2CMax100kHz       : 1;       // When enabled, the device is only able to handle 100 kHz bus-clock speed, shows warning and enables "Force Slow I2C speed" by default
 };
-typedef std::vector<DeviceStruct> DeviceVector;
+
+
+// Since Device[] is used in all plugins, creating a strict struct for it will increase build size by about 5k.
+// So for ESP8266, which is severely build size constraint, we use a simple vector typedef.
+// For ESP32, we use the more strictly typed struct to let the compiler find undesired use of this.
+#ifdef ESP8266
+//typedef std::vector<DeviceStruct> DeviceVector;
+typedef DeviceStruct* DeviceVector;
+#else
+
+// Specific struct used to only allow changing Device vector in the PLUGIN_ADD call
+struct DeviceCount_t {
+  DeviceCount_t() = default;
+
+  DeviceCount_t& operator++() {
+    // pre-increment, ++a
+    ++value;
+    return *this;
+  }
+ 
+  // operator int() const { return value; }
+
+  int value = -1;
+
+};
+
+struct DeviceVector {
+
+  // Regular access to DeviceStruct elements is 'const'
+  const DeviceStruct& operator[](deviceIndex_t index) const
+  {
+    return _vector[index.value];
+  }
+
+
+  // Only 'write' access to DeviceStruct elements via DeviceCount_t type
+  // This should only be done during call to PLUGIN_ADD
+  DeviceStruct& operator[](DeviceCount_t index)
+  {
+    return _vector[index.value];
+  }
+
+
+  // Should not change anything in the device vector except for the PLUGIN_ADD call
+  // Whichever calls this function should reconsider doing this
+  // FIXME TD-er: Fix whereever this is called.
+  DeviceStruct& getDeviceStructForEdit(deviceIndex_t index)
+  {
+    return _vector[index.value];
+  }
+
+
+  size_t size() const
+  {
+    return _vector.size();
+  }
+
+
+  void resize(size_t newSize)
+  {
+    _vector.resize(newSize);
+  }
+
+private:
+  std::vector<DeviceStruct> _vector;
+};
+#endif
 
 
 #endif // DATASTRUCTS_DEVICESTRUCTS_H

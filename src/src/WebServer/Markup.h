@@ -2,6 +2,9 @@
 #define WEBSERVER_WEBSERVER_MARKUP_H
 
 #include "../WebServer/common.h"
+#include "../DataTypes/ProtocolIndex.h"
+#include "../DataTypes/CPluginID.h"
+#include "../DataTypes/PluginID.h"
 #include "../Globals/Plugins.h"
 #include "../Helpers/StringGenerator_GPIO.h"
 
@@ -172,6 +175,8 @@ void addRowLabel(LabelType::Enum label);
 
 void addRowLabelValue(LabelType::Enum label);
 
+void addRowLabelValues(const LabelType::Enum labels[]);
+
 void addRowLabelValue_copy(LabelType::Enum label);
 
 // ********************************************************************************
@@ -232,7 +237,8 @@ void addNumericBox(const String& id,
                    int           min,
                    int           max,
                    const __FlashStringHelper * classname,
-                   const String& tooltip = EMPTY_STRING);
+                   const String& tooltip = EMPTY_STRING,
+                   bool disabled = false);
 #endif // if FEATURE_TOOLTIPS
 
 void addFloatNumberBox(const String& id,
@@ -249,11 +255,13 @@ void addFloatNumberBox(const String& id,
 void addNumericBox(const __FlashStringHelper *id,
                    int                        value,
                    int                        min,
-                   int                        max);
+                   int                        max,
+                   bool                       disabled = false);
 void addNumericBox(const String& id,
                    int           value,
                    int           min,
-                   int           max);
+                   int           max,
+                   bool          disabled = false);
 
 // ********************************************************************************
 // Add Textbox
@@ -314,7 +322,10 @@ void   addRTDHelpButton(const String& url);
 void   addHelpButton(const String& url,
                      bool          isRTD);
 
-void   addRTDPluginButton(pluginID_t taskDeviceNumber);
+void   addRTDPluginButton(pluginID_t pluginID);
+# ifndef LIMIT_BUILD_SIZE
+void   addRTDControllerButton(cpluginID_t cpluginID);
+# endif // ifndef LIMIT_BUILD_SIZE
 
 String makeDocLink(const String& url,
                    bool          isRTD);
@@ -338,6 +349,8 @@ enum class AdcPinSelectPurpose {
 void addADC_PinSelect(AdcPinSelectPurpose purpose,
                       const String      & id,
                       int                 choice);
+void addDAC_PinSelect(const String& id,  
+                      int           choice);
 #endif // ifdef ESP32
 
 

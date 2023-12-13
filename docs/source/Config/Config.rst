@@ -11,6 +11,8 @@ The name of this node.
 This is mainly used when connecting to a MQTT broker or in p2p communications.
 It is also used to generate a hostname in the local network, for example when using mDNS.
 
+2023-01-27: Variables like ``%unit_0%``, ``%ip4%`` etc. can be used as (part of) the Name, and will be expanded anywhere the name is used. If the ``Append Unit Number to hostname`` setting is enabled, the name will **not** get the unit number appended, but the Hostname **will** have the unit number appended.
+
 
 Unit Number
 -----------
@@ -296,3 +298,15 @@ N.B. the maximum possible duration depends on the used core library version and 
 Sleep on connection failure
 ---------------------------
 
+CDN (Content delivery network)
+------------------------------
+
+The **Custom CDN URL** can be set to a server url (https preferred, they are downloaded by the browser, **not** by the ESPEasy unit) that hosts *all* files as listed on :ref:`ExternalHostedStaticFiles` (System variables can be used to customize the URL).
+
+To reduce the build size where possible, some builds fetch the javascript (.js) and .css UI files from an external server, as this is used in the browser only. The default location for this data is the Content Delivery Network (CDN) of ``jsdelivr.net``, where these file are uploaded for specific releases.
+
+For users that want to host these files in their local network, or if the files on jsdeliver.net have expired, an alternative location for these .js and .css file can be configured.
+
+Setting this location will **override** the default CDN url, except for your Custom build that may already *have* the CDN url set, then this setting won't be available!
+
+**Warning**: If an invalid location is set, the UI will be distorted, though should still be usable.

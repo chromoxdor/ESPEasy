@@ -14,6 +14,12 @@ Plugin based events
 
 Besides the internal events there's also plugin specific events. These are listed here below.
 
+P000 (core) :ref:`P000_Buzzer_page`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. include:: ../Plugin/P001_events_RTTTL.repl
+
+
 .. P001 :ref:`P001_page`
 .. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -224,10 +230,10 @@ Besides the internal events there's also plugin specific events. These are liste
 .. .. include:: ../Plugin/P035_events.repl
 
 
-.. P036 :ref:`P036_page`
-.. ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+P036 :ref:`P036_page`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. .. include:: ../Plugin/P036_events.repl
+.. include:: ../Plugin/P036_events.repl
 
 
 .. P037 :ref:`P037_page`
@@ -513,6 +519,12 @@ P097 :ref:`P097_page`
 .. include:: ../Plugin/P097_events.repl
 
 
+P098 :ref:`P098_page`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. include:: ../Plugin/P098_events.repl
+
+
 P099 :ref:`P099_page`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -527,3 +539,12 @@ P129 :ref:`P129_page`
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. include:: ../Plugin/P129_events.repl
+
+P138 :ref:`P138_page`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. include:: ../Plugin/P138_events.repl
+P143 :ref:`P143_page`
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. include:: ../Plugin/P143_events.repl

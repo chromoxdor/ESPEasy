@@ -93,11 +93,11 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
       const uint8_t i2cAddressValues[] = { 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27 };
 
       if (function == PLUGIN_WEBFORM_SHOW_I2C_PARAMS) {
-        String  portNames[16];
-        int     portValues[16];
-        uint8_t unit    = (CONFIG_PORT - 1) / 16;
-        uint8_t port    = CONFIG_PORT - (unit * 16);
-        uint8_t address = 0x20 + unit;
+        String portNames[16];
+        int    portValues[16];
+        const uint8_t unit    = (CONFIG_PORT - 1) / 16;
+        const uint8_t port    = CONFIG_PORT - (unit * 16);
+        const uint8_t address = 0x20 + unit;
 
         for (uint8_t x = 0; x < 16; x++) {
           portValues[x] = x + 1;
@@ -105,18 +105,28 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
           portNames[x] += (x < 8 ? 'A' : 'B');
           portNames[x] += (x < 8 ? x : x - 8);
         }
-        addFormSelectorI2C(F("p009_i2c"), 8, i2cAddressValues, address);
-        addFormSelector(F("Port"), F("p009_port"), 16, portNames, portValues, port);
+        addFormSelectorI2C(F("pi2c"), 8, i2cAddressValues, address);
+        addFormSelector(F("Port"), F("pport"), 16, portNames, portValues, port);
       } else {
         success = intArrayContains(8, i2cAddressValues, event->Par1);
       }
       break;
     }
 
+    # if FEATURE_I2C_GET_ADDRESS
+    case PLUGIN_I2C_GET_ADDRESS:
+    {
+      const uint8_t unit = (CONFIG_PORT - 1) / 16;
+      event->Par1 = 0x20 + unit;
+      success     = true;
+      break;
+    }
+    # endif // if FEATURE_I2C_GET_ADDRESS
+
     case PLUGIN_WEBFORM_LOAD:
     {
       // @giig1967g: set current task value for taking actions after changes
-      const uint32_t key = createKey(PLUGIN_ID_009, CONFIG_PORT);
+      const uint32_t key = createKey(PLUGIN_MCP, CONFIG_PORT);
 
       auto it = globalMapPortStatus.find(key);
 
@@ -139,13 +149,13 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
 
     case PLUGIN_WEBFORM_SAVE:
     {
-      uint8_t i2c  = getFormItemInt(F("p009_i2c"));
-      uint8_t port = getFormItemInt(F("p009_port"));
+      uint8_t i2c  = getFormItemInt(F("pi2c"));
+      uint8_t port = getFormItemInt(F("pport"));
       CONFIG_PORT = (((i2c - 0x20) << 4) + port);
 
       SwitchWebformSave(
         event->TaskIndex,
-        PLUGIN_ID_009,
+        PLUGIN_MCP,
         P009_BOOTSTATE,
         P009_DEBOUNCE,
         P009_DOUBLECLICK,
@@ -167,7 +177,7 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
       if (CONFIG_PORT >= 0)
       {
         portStatusStruct newStatus;
-        const uint32_t   key = createKey(PLUGIN_ID_009, CONFIG_PORT);
+        const uint32_t   key = createKey(PLUGIN_MCP, CONFIG_PORT);
 
         // Read current status or create empty if it does not exist
         newStatus = globalMapPortStatus[key];
@@ -224,13 +234,22 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
 
         // setPinState(PLUGIN_ID_009, CONFIG_PORT, PIN_MODE_INPUT, switchstate[event->TaskIndex]);
         savePortStatus(key, newStatus);
+        success = true;
       }
-      success = true;
       break;
     }
 
     case PLUGIN_TEN_PER_SECOND:
     {
+      # if FEATURE_I2C_DEVICE_CHECK
+
+      const uint8_t unit    = (CONFIG_PORT - 1) / 16;
+      const uint8_t address = 0x20 + unit;
+
+      if (!I2C_deviceCheck(address, event->TaskIndex, 10, PLUGIN_I2C_GET_ADDRESS)) { // Generate stats
+        break; // Will return the default false for success
+      }
+      # endif // if FEATURE_I2C_DEVICE_CHECK
       const int8_t state                            = GPIO_MCP_Read(CONFIG_PORT);
       const __FlashStringHelper *monitorEventString = F("MCP");
 
@@ -248,7 +267,7 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
          on Button#State=3 do //will fire if doubleclick
       \**************************************************************************/
       portStatusStruct currentStatus;
-      const uint32_t   key = createKey(PLUGIN_ID_009, CONFIG_PORT);
+      const uint32_t   key = createKey(PLUGIN_MCP, CONFIG_PORT);
 
       // WARNING operator [],creates an entry in map if key doesn't exist:
       currentStatus = globalMapPortStatus[key];
@@ -258,9 +277,9 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
         // CASE 1: using SafeButton, so wait 1 more 100ms cycle to acknowledge the status change
         if (lround(P009_SAFE_BTN) && (state != currentStatus.state) && (PCONFIG_LONG(3) == 0))
         {
-          #ifndef BUILD_NO_DEBUG
+          # ifndef BUILD_NO_DEBUG
           addLog(LOG_LEVEL_DEBUG, F("MCP :SafeButton 1st click."));
-          #endif
+          # endif // ifndef BUILD_NO_DEBUG
           PCONFIG_LONG(3) = 1;
         }
 
@@ -463,7 +482,7 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
     // giig1967g: Added EXIT function
     case PLUGIN_EXIT:
     {
-      removeTaskFromPort(createKey(PLUGIN_ID_009, CONFIG_PORT));
+      removeTaskFromPort(createKey(PLUGIN_MCP, CONFIG_PORT));
       break;
     }
 
@@ -519,7 +538,7 @@ boolean Plugin_009(uint8_t function, struct EventStruct *event, String& string)
       portStatusStruct tempStatus;
 
       // WARNING: operator [] creates an entry in the map if key does not exist
-      const uint32_t key = createKey(PLUGIN_ID_009, event->Par1);
+      const uint32_t key = createKey(PLUGIN_MCP, event->Par1);
       tempStatus = globalMapPortStatus[key];
 
       tempStatus.state        = event->Par2;

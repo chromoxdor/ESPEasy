@@ -10,6 +10,8 @@
 #include "../ESPEasyCore/ESPEasyEth.h"
 #include "../ESPEasyCore/ESPEasyNetwork.h"
 #include "../ESPEasyCore/ESPEasyWifi.h"
+#include "../ESPEasyCore/Serial.h"
+#include "../Globals/ESPEasyEthEvent.h"
 #include "../Globals/ESPEasyWiFiEvent.h"
 #include "../Globals/ESPEasy_Scheduler.h"
 
@@ -20,10 +22,11 @@
 #include "../Globals/EventQueue.h"
 #include "../Globals/NetworkState.h"
 #include "../Globals/Nodes.h"
+#include "../Globals/ResetFactoryDefaultPref.h"
 #include "../Globals/Settings.h"
-#include "../Globals/WiFi_AP_Candidates.h"
 #include "../Helpers/ESPEasy_Storage.h"
 #include "../Helpers/ESPEasy_time_calc.h"
+#include "../Helpers/Hardware.h"
 #include "../Helpers/Misc.h"
 #include "../Helpers/Network.h"
 #include "../Helpers/Numerical.h"
@@ -34,8 +37,11 @@
 
 #include <IPAddress.h>
 #include <base64.h>
-#include <MD5Builder.h>
+#include <MD5Builder.h> // for getDigestAuth
 
+#include <WiFiUdp.h>
+
+#include <lwip/dns.h>
 
 // Generic Networking routines
 
@@ -50,6 +56,12 @@
 
 #include <lwip/netif.h>
 
+#ifdef ESP8266
+#include <lwip/opt.h>
+#include <lwip/udp.h>
+#include <lwip/igmp.h>
+#include <include/UdpContext.h>
+#endif
 
 #ifdef SUPPORT_ARP
 # include <lwip/etharp.h>
@@ -97,7 +109,7 @@ void sendSyslog(uint8_t logLevel, const String& message)
       // problem resolving the hostname or port
       return;
     }
-    uint8_t prio = Settings.SyslogFacility * 8;
+    unsigned int prio = Settings.SyslogFacility * 8;
 
     if (logLevel == LOG_LEVEL_ERROR) {
       prio += 3; // syslog error
@@ -114,15 +126,14 @@ void sendSyslog(uint8_t logLevel, const String& message)
     // Using Settings.Name as the Hostname (Hostname must NOT content space)
     {
       String header;
-      String hostname = NetworkCreateRFCCompliantHostname(true);
-      hostname.trim();
-      hostname.replace(' ', '_');
-      header.reserve(16 + hostname.length());
-      char str[8] = { 0 };
-      snprintf_P(str, sizeof(str), PSTR("<%u>"), prio);
-      header  = str;
-      header += hostname;
+      header += '<';
+      header += prio;
+      header += '>';
+      header += NetworkCreateRFCCompliantHostname(true);
       header += F(" EspEasy: ");
+      header.trim();
+      header.replace(' ', '_');
+      
       #ifdef ESP8266
       portUDP.write(header.c_str(),                                    header.length());
       #endif // ifdef ESP8266
@@ -131,16 +142,13 @@ void sendSyslog(uint8_t logLevel, const String& message)
       #endif // ifdef ESP32
     }
 
-    const size_t messageLength = message.length();
+    #ifdef ESP8266
+    portUDP.write(message.c_str(), message.length());
+    #endif // ifdef ESP8266
+    #ifdef ESP32
+    portUDP.write(reinterpret_cast<const uint8_t *>(message.c_str()), message.length());
+    #endif // ifdef ESP32
 
-    for (size_t i = 0; i < messageLength; ++i) {
-      #ifdef ESP8266
-      portUDP.write(message[i]);
-      #endif // ifdef ESP8266
-      #ifdef ESP32
-      portUDP.write((uint8_t)message[i]);
-      #endif // ifdef ESP32
-    }
     portUDP.endPacket();
     FeedSW_watchdog();
     delay(0);
@@ -191,9 +199,7 @@ void sendUDP(uint8_t unit, const uint8_t *data, uint8_t size)
 # ifndef BUILD_NO_DEBUG
 
   if (loglevelActiveFor(LOG_LEVEL_DEBUG_MORE)) {
-    String log = F("UDP  : Send UDP message to ");
-    log += unit;
-    addLogMove(LOG_LEVEL_DEBUG_MORE, log);
+    addLogMove(LOG_LEVEL_DEBUG_MORE,  concat(F("UDP  : Send UDP message to "), unit));
   }
 # endif // ifndef BUILD_NO_DEBUG
 
@@ -229,17 +235,13 @@ void updateUDPport()
   if (Settings.UDPPort != 0) {
     if (portUDP.begin(Settings.UDPPort) == 0) {
       if (loglevelActiveFor(LOG_LEVEL_ERROR)) {
-        String log = F("UDP : Cannot bind to ESPEasy p2p UDP port ");
-        log += String(Settings.UDPPort);
-        addLogMove(LOG_LEVEL_ERROR, log);
+        addLogMove(LOG_LEVEL_ERROR, concat(F("UDP : Cannot bind to ESPEasy p2p UDP port "), Settings.UDPPort));
       }
     } else {
       lastUsedUDPPort = Settings.UDPPort;
 
       if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-        String log = F("UDP : Start listening on port ");
-        log += String(Settings.UDPPort);
-        addLogMove(LOG_LEVEL_INFO, log);
+        addLogMove(LOG_LEVEL_INFO, concat(F("UDP : Start listening on port "), Settings.UDPPort));
       }
     }
   }
@@ -334,15 +336,11 @@ void checkUDP()
 # ifndef BUILD_NO_DEBUG
 
                   if (loglevelActiveFor(LOG_LEVEL_DEBUG_MORE)) {
-                    String log;
-                    log.reserve(64);
-                    log  = F("UDP  : ");
-                    log += received.STA_MAC().toString();
-                    log += ',';
-                    log += received.IP().toString();
-                    log += ',';
-                    log += received.unit;
-                    addLog(LOG_LEVEL_DEBUG_MORE, log);
+                    addLogMove(LOG_LEVEL_DEBUG_MORE,  
+                      strformat(F("UDP  : %s,%s,%d"), 
+                        received.STA_MAC().toString().c_str(), 
+                        formatIP(received.IP()).c_str(), 
+                        received.unit));
                   }
 
 #endif // ifndef BUILD_NO_DEBUG
@@ -395,32 +393,26 @@ String formatUnitToIPAddress(uint8_t unit, uint8_t formatCode) {
       }
     }
   }
-  return unitIPAddress.toString();
+  return formatIP(unitIPAddress);
 }
 
 /*********************************************************************************************\
    Get IP address for unit
 \*********************************************************************************************/
 IPAddress getIPAddressForUnit(uint8_t unit) {
-  IPAddress remoteNodeIP;
-
   if (unit == 255) {
-    remoteNodeIP = { 255, 255, 255, 255 };
+    const IPAddress ip(255, 255, 255, 255);
+    return ip;
   }
-  else {
-    auto it = Nodes.find(unit);
+  auto it = Nodes.find(unit);
 
-    if (it == Nodes.end()) {
-      return remoteNodeIP;
-    }
-
-    if (it->second.ip[0] == 0) {
-      return remoteNodeIP;
-    }
-    return it->second.IP();
+  if (it == Nodes.end() || it->second.ip[0] == 0) {
+    IPAddress ip;
+    return ip;
   }
-  return remoteNodeIP;
+  return it->second.IP();
 }
+
 
 /*********************************************************************************************\
    Refresh aging for remote units, drop if too old...
@@ -548,7 +540,7 @@ void SSDP_schema(WiFiClient& client) {
                  "<device>"
                  "<deviceType>urn:schemas-upnp-org:device:BinaryLight:1</deviceType>"
                  "<friendlyName>"));
-  client.print(Settings.Name);
+  client.print(Settings.getName());
   client.print(F("</friendlyName>"
                  "<presentationURL>/</presentationURL>"
                  "<serialNumber>"));
@@ -817,7 +809,7 @@ void SSDP_update() {
                 }
                 break;
               case MX:
-                _delay = random(0, atoi(buffer)) * 1000L;
+                _delay = HwRandom(0, atoi(buffer)) * 1000L;
                 break;
             }
 
@@ -908,7 +900,7 @@ bool hasIPaddr() {
   for (auto addr : addrList) {
     if ((configured = (!addr.isLocal() && (addr.ifnumber() == STATION_IF)))) {
       /*
-         Serial.printf("STA: IF='%s' hostname='%s' addr= %s\n",
+         ESPEASY_SERIAL_CONSOLE_PORT.printf("STA: IF='%s' hostname='%s' addr= %s\n",
                     addr.ifname().c_str(),
                     addr.ifhostname(),
                     addr.toString().c_str());
@@ -1038,6 +1030,68 @@ bool connectClient(WiFiClient& client, IPAddress ip, uint16_t port, uint32_t tim
 }
 #endif // FEATURE_HTTP_CLIENT
 
+void scrubDNS() {
+  #if FEATURE_ETHERNET
+  if (active_network_medium == NetworkMedium_t::Ethernet) {
+    if (EthEventData.EthServicesInitialized()) {
+      setDNS(0, EthEventData.dns0_cache);
+      setDNS(1, EthEventData.dns1_cache);
+    }
+    return;
+  }
+  #endif
+  if (WiFiEventData.WiFiServicesInitialized()) {
+    setDNS(0, WiFiEventData.dns0_cache);
+    setDNS(1, WiFiEventData.dns1_cache);
+  }
+}
+
+bool valid_DNS_address(const IPAddress& dns) {
+  return (/*dns.v4() != (uint32_t)0x00000000 && */
+          dns.v4() != (uint32_t)0xFD000000 && 
+#ifdef ESP32
+          // Bug where IPv6 global prefix is set as DNS
+          // Global IPv6 prefixes currently start with 2xxx::
+          (dns.v4() & (uint32_t)0xF0000000) != (uint32_t)0x20000000 && 
+#endif
+          dns != INADDR_NONE);
+}
+
+bool setDNS(int index, const IPAddress& dns) {
+  if (index >= 2) return false;
+  #ifdef ESP8266
+  if(dns.isSet() && dns != WiFi.dnsIP(index)) {
+    dns_setserver(index, dns);
+    #ifndef BUILD_NO_DEBUG
+    if (loglevelActiveFor(LOG_LEVEL_INFO)) {
+      addLogMove(LOG_LEVEL_INFO, concat(F("IP   : Set DNS: "),  formatIP(dns)));
+    }
+    #endif
+    return true;
+  }
+  #endif
+  #ifdef ESP32
+  ip_addr_t d;
+  d.type = IPADDR_TYPE_V4;
+
+  if (valid_DNS_address(dns) || dns.v4() == (uint32_t)0x00000000) {
+    // Set DNS0-Server
+    d.u_addr.ip4.addr = static_cast<uint32_t>(dns);
+    const ip_addr_t* cur_dns = dns_getserver(index);
+    if (cur_dns != nullptr && cur_dns->u_addr.ip4.addr == d.u_addr.ip4.addr) {
+      // Still the same as before
+      return false;
+    }
+    dns_setserver(index, &d);
+    if (loglevelActiveFor(LOG_LEVEL_INFO)) {
+      addLogMove(LOG_LEVEL_INFO, concat(F("IP   : Set DNS: "),  formatIP(dns)));
+    }
+    return true;
+  }
+  #endif
+  return false;
+}
+
 bool resolveHostByName(const char *aHostname, IPAddress& aResult, uint32_t timeout_ms) {
   START_TIMER;
 
@@ -1046,6 +1100,9 @@ bool resolveHostByName(const char *aHostname, IPAddress& aResult, uint32_t timeo
   }
 
   FeedSW_watchdog();
+
+  // FIXME TD-er: Must try to restore DNS server entries.
+  scrubDNS();
 
 #if defined(ARDUINO_ESP8266_RELEASE_2_3_0) || defined(ESP32)
   bool resolvedIP = WiFi.hostByName(aHostname, aResult) == 1;
@@ -1070,10 +1127,7 @@ bool hostReachable(const String& hostname) {
   }
 
   if (loglevelActiveFor(LOG_LEVEL_ERROR)) {
-    String log = F("Hostname cannot be resolved: ");
-
-    log += hostname;
-    addLogMove(LOG_LEVEL_ERROR, log);
+    addLogMove(LOG_LEVEL_ERROR,  concat(F("Hostname cannot be resolved: "), hostname));
   }
   return false;
 }
@@ -1088,7 +1142,7 @@ bool beginWiFiUDP_randomPort(WiFiUDP& udp) {
 
   while (attempts > 0) {
     --attempts;
-    long port = random(1025, 65535);
+    long port = HwRandom(1025, 65535);
 
     if (udp.begin(port) != 0) {
       return true;
@@ -1171,9 +1225,13 @@ String splitURL(const String& fullURL, String& user, String& pass, String& host,
   } else {
     starthost += 3;
   }
-  int endhost = fullURL.indexOf('/', starthost);
-
+  const int endhost = fullURL.indexOf('/', starthost);
   splitUserPass_HostPortString(fullURL.substring(starthost, endhost), user, pass, host, port);
+
+  if (endhost == -1) {
+    return EMPTY_STRING;
+  }
+
   int startfile = fullURL.lastIndexOf('/');
 
   if (startfile >= 0) {
@@ -1285,7 +1343,7 @@ String getDigestAuth(const String& authReq,
     F("\", response=\"") + response +
     '"';
 
-  //  Serial.println(authorization);
+  //  ESPEASY_SERIAL_CONSOLE_PORT.println(authorization);
 
   return authorization;
 }
@@ -1310,19 +1368,13 @@ void log_http_result(const HTTPClient& http,
   }
 
   if (loglevelActiveFor(loglevel)) {
-    String log = F("HTTP : ");
-    log += logIdentifier;
-    log += ' ';
-    log += host;
-    log += ' ';
-    log += HttpMethod;
-    log += F("... ");
+    String log = strformat(F("HTTP : %s %s %s"), 
+                          logIdentifier.c_str(), host.c_str(), HttpMethod.c_str());
 
     if (!success) {
       log += F("failed ");
     }
-    log += F("HTTP code: ");
-    log += String(httpCode);
+    log += concat(F("HTTP code: "), httpCode);
 
     if (!success) {
       log += ' ';
@@ -1330,8 +1382,7 @@ void log_http_result(const HTTPClient& http,
     }
 
     if (response.length() > 0) {
-      log += F(" Received reply: ");
-      log += response.substring(0, 100); // Returned string may be huge, so only log the first part.
+      log += concat(F(" Received reply: "), response.substring(0, 100)); // Returned string may be huge, so only log the first part.
     }
     addLogMove(loglevel, log);
   }
@@ -1404,9 +1455,10 @@ int http_authenticate(const String& logIdentifier,
   http.addHeader(F("Accept"), F("*/*;q=0.1"));
 
   // Add client IP
-  http.addHeader(F("X-Forwarded-For"), NetworkLocalIP().toString());
+  http.addHeader(F("X-Forwarded-For"), formatIP(NetworkLocalIP()));
 
   delay(0);
+  scrubDNS();
 #if defined(CORE_POST_2_6_0) || defined(ESP32)
   http.begin(client, host, port, uri, false); // HTTP
 #else // if defined(CORE_POST_2_6_0) || defined(ESP32)
@@ -1436,7 +1488,7 @@ int http_authenticate(const String& logIdentifier,
   }
 
   // start connection and send HTTP header (and body)
-  if (HttpMethod.equals(F("HEAD")) || HttpMethod.equals(F("GET"))) {
+  if (equals(HttpMethod, F("HEAD")) || equals(HttpMethod, F("GET"))) {
     httpCode = http.sendRequest(HttpMethod.c_str());
   } else {
     httpCode = http.sendRequest(HttpMethod.c_str(), postStr);
@@ -1449,14 +1501,14 @@ int http_authenticate(const String& logIdentifier,
     if (authReq.indexOf(F("Digest")) != -1) {
       // Use Digest authorization
       if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-        addLogMove(LOG_LEVEL_INFO, String(F("HTTP : Start Digest Authorization for ")) + host);
+        addLogMove(LOG_LEVEL_INFO, concat(F("HTTP : Start Digest Authorization for "), host));
       }
 
       http.setAuthorization(""); // Clear Basic authorization
 #ifdef ESP32
       http.setAuthorizationType(""); // Default type is "Basic" and "Digest" is already part of the string generated by getDigestAuth()
 #endif
-      const String authorization = getDigestAuth(authReq, user, pass, "GET", uri, 1);
+      const String authorization = getDigestAuth(authReq, user, pass, F("GET"), uri, 1);
 
       http.end();
 #if defined(CORE_POST_2_6_0) || defined(ESP32)
@@ -1468,7 +1520,7 @@ int http_authenticate(const String& logIdentifier,
       http.addHeader(F("Authorization"), authorization);
 
       // start connection and send HTTP header (and body)
-      if (HttpMethod.equals(F("HEAD")) || HttpMethod.equals(F("GET"))) {
+      if (equals(HttpMethod, F("HEAD")) || equals(HttpMethod, F("GET"))) {
         httpCode = http.sendRequest(HttpMethod.c_str());
       } else {
         httpCode = http.sendRequest(HttpMethod.c_str(), postStr);
@@ -1494,7 +1546,7 @@ int http_authenticate(const String& logIdentifier,
     eventQueue.addMove(std::move(event));
   }
 #ifndef BUILD_NO_DEBUG
-  log_http_result(http, logIdentifier, host, HttpMethod, httpCode, EMPTY_STRING);
+  log_http_result(http, logIdentifier, host + ':' + port, HttpMethod, httpCode, EMPTY_STRING);
 #endif
   return httpCode;
 }
@@ -1588,14 +1640,8 @@ bool start_downloadFile(WiFiClient  & client,
 # ifndef BUILD_NO_DEBUG
 
   if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
-    String log = F("downloadFile: URL: ");
-    log += url;
-    log += F(" decoded: ");
-    log += host;
-    log += ':';
-    log += port;
-    log += uri;
-    addLogMove(LOG_LEVEL_DEBUG, log);
+    addLogMove(LOG_LEVEL_DEBUG, strformat(F("downloadFile: URL: %s decoded: %s:%d%s"), 
+                                          url.c_str(), host.c_str(), port, uri.c_str()));
   }
 # endif // ifndef BUILD_NO_DEBUG
 
@@ -1622,10 +1668,7 @@ bool start_downloadFile(WiFiClient  & client,
     );
 
   if (httpCode != HTTP_CODE_OK) {
-    error  = F("HTTP code: ");
-    error += httpCode;
-    error += ' ';
-    error += url;
+    error  = strformat(F("HTTP code: %d %s"), httpCode, url.c_str());
 
     addLog(LOG_LEVEL_ERROR, error);
     http.end();
@@ -1645,8 +1688,7 @@ bool downloadFile(const String& url, String file_save, const String& user, const
   }
 
   if (fileExists(file_save)) {
-    error  = F("File exists: ");
-    error += file_save;
+    error  = concat(F("File exists: "), file_save);
     addLog(LOG_LEVEL_ERROR, error);
     http.end();
     client.stop();
@@ -1679,11 +1721,7 @@ bool downloadFile(const String& url, String file_save, const String& user, const
         timeout = millis() + DOWNLOAD_FILE_TIMEOUT;
 
         if (f.write(buff, c) != c) {
-          error  = F("Error saving file: ");
-          error += file_save;
-          error += ' ';
-          error += bytesWritten;
-          error += F(" Bytes written");
+          error  = strformat(F("Error saving file: %s %d Bytes written"), file_save.c_str(), bytesWritten);
           addLog(LOG_LEVEL_ERROR, error);
           http.end();
           client.stop();
@@ -1695,8 +1733,7 @@ bool downloadFile(const String& url, String file_save, const String& user, const
       }
 
       if (timeOutReached(timeout)) {
-        error  = F("Timeout: ");
-        error += file_save;
+        error  = concat(F("Timeout: "), file_save);
         addLog(LOG_LEVEL_ERROR, error);
         delay(0);
         http.end();
@@ -1710,26 +1747,42 @@ bool downloadFile(const String& url, String file_save, const String& user, const
     client.stop();
 
     if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-      String log = F("downloadFile: ");
-      log += file_save;
-      log += F(" Success");
-      addLogMove(LOG_LEVEL_INFO, log);
+      addLogMove(LOG_LEVEL_INFO, strformat(F("downloadFile: %s Success"), file_save.c_str()));
     }
     return true;
   }
   http.end();
   client.stop();
-  error  = F("Failed to open file for writing: ");
-  error += file_save;
+  error  = concat(F("Failed to open file for writing: "), file_save);
   addLog(LOG_LEVEL_ERROR, error);
   return false;
 }
 
-bool downloadFirmware(const String& url, String& error)
+bool downloadFirmware(String filename, String& error)
 {
-  String file_save;
-  String user;
-  String pass;
+  String baseurl, user, pass;
+# if FEATURE_CUSTOM_PROVISIONING
+  MakeProvisioningSettings(ProvisioningSettings);
+
+  if (ProvisioningSettings.get()) {
+    loadProvisioningSettings(*ProvisioningSettings);
+    if (!ProvisioningSettings->allowedFlags.allowFetchFirmware) {
+      error = F("Not Allowed");
+      return false;
+    }
+    baseurl = ProvisioningSettings->url;
+    user = ProvisioningSettings->user;
+    pass = ProvisioningSettings->pass;
+  }
+# endif // if FEATURE_CUSTOM_PROVISIONING
+
+  const String fullUrl = joinUrlFilename(baseurl, filename);
+
+  return downloadFirmware(fullUrl, filename, user, pass, error);
+}
+
+bool downloadFirmware(const String& url, String& file_save, String& user, String& pass, String& error)
+{
   WiFiClient client;
   HTTPClient http;
 
@@ -1761,11 +1814,8 @@ bool downloadFirmware(const String& url, String& error)
         timeout = millis() + DOWNLOAD_FILE_TIMEOUT;
 
         if (Update.write(buff, c) != c) {
-          error  = F("Error saving firmware update: ");
-          error += file_save;
-          error += ' ';
-          error += bytesWritten;
-          error += F(" Bytes written");
+          error  = strformat(F("Error saving firmware update: %s %d Bytes written"),
+                             file_save.c_str(), bytesWritten);
           addLog(LOG_LEVEL_ERROR, error);
           Update.end();
           http.end();
@@ -1778,8 +1828,7 @@ bool downloadFirmware(const String& url, String& error)
       }
 
       if (timeOutReached(timeout)) {
-        error  = F("Timeout: ");
-        error += file_save;
+        error  = concat(F("Timeout: "), file_save);
         addLog(LOG_LEVEL_ERROR, error);
         delay(0);
         Update.end();
@@ -1798,16 +1847,12 @@ bool downloadFirmware(const String& url, String& error)
     client.stop();
 
     if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-      String log = F("downloadFile: ");
-      log += file_save;
-      log += F(" Success");
-      addLogMove(LOG_LEVEL_INFO, log);
+      addLogMove(LOG_LEVEL_INFO, strformat(F("downloadFile: %s Success"), file_save.c_str()));
     }
 
     if (Update.end()) {
       if (Settings.UseRules) {
-        String event = F("ProvisionFirmware#success=");
-        event += file_save;
+        String event = concat(F("ProvisionFirmware#success="), file_save);
         eventQueue.addMove(std::move(event));
       }
     }
@@ -1816,8 +1861,7 @@ bool downloadFirmware(const String& url, String& error)
   http.end();
   client.stop();
   Update.end();
-  error  = F("Failed update firmware: ");
-  error += file_save;
+  error  = concat(F("Failed update firmware: "), file_save);
   addLog(LOG_LEVEL_ERROR, error);
 
   if (Settings.UseRules) {
@@ -1826,6 +1870,29 @@ bool downloadFirmware(const String& url, String& error)
     eventQueue.addMove(std::move(event));
   }
   return false;
+}
+
+String joinUrlFilename(const String& url, String& filename)
+{
+  String fullUrl;
+
+  fullUrl.reserve(url.length() + filename.length() + 1); // May need to add an extra slash
+  fullUrl = url;
+  fullUrl = parseTemplate(fullUrl, true);                // URL encode
+
+  // URLEncode may also encode the '/' into "%2f"
+  // FIXME TD-er: Can this really occur?
+  fullUrl.replace(F("%2f"), F("/"));
+
+  while (filename.startsWith(F("/"))) {
+    filename = filename.substring(1);
+  }
+
+  if (!fullUrl.endsWith(F("/"))) {
+    fullUrl += F("/");
+  }
+  fullUrl += filename;
+  return fullUrl;
 }
 
 #endif // if FEATURE_DOWNLOAD

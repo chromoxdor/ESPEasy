@@ -11,8 +11,8 @@
 # include <vector>
 
 # ifndef BUILD_NO_DEBUG
-# define P131_DEBUG_LOG  // Enable for some (extra) logging
-#endif
+#  define P131_DEBUG_LOG // Enable for some (extra) logging
+# endif // ifndef BUILD_NO_DEBUG
 
 # define P131_Nlines  16 // The number of different lines which can be displayed
 # define P131_Nchars  50
@@ -74,7 +74,6 @@
 enum class P131_CommandTrigger : uint8_t {
   neomatrix = 0u,
   neo       = 1u,
-  MAX       = 2u // Keep as last item!
 };
 
 const __FlashStringHelper* P131_CommandTrigger_toString(P131_CommandTrigger cmd);
@@ -85,6 +84,7 @@ struct P131_content_struct {
   int16_t pixelPos    = 0;  // current left-offset on display
   int16_t speed       = 0;  // 0.1 sec. steps
   int16_t loop        = -1; // steps before we go, -1 = restart from speed
+  int16_t _filler1    = 0;  // Filler added to achieve better instance/memory alignment
   int8_t  stepWidth   = 0;  // Nr. of pixels to scroll - 1
   bool    active      = false;
   bool    rightScroll = false;
@@ -118,6 +118,10 @@ public:
   bool plugin_read(struct EventStruct *event);
   bool plugin_write(struct EventStruct *event,
                     const String      & string);
+  # if ADAGFX_ENABLE_GET_CONFIG_VALUE
+  bool plugin_get_config_value(struct EventStruct *event,
+                               String            & string);
+  # endif // if ADAGFX_ENABLE_GET_CONFIG_VALUE
   bool plugin_ten_per_second(struct EventStruct *event);
 
   bool isInitialized() {
@@ -138,19 +142,20 @@ private:
   Adafruit_NeoMatrix *matrix    = nullptr;
   AdafruitGFX_helper *gfxHelper = nullptr;
 
-  uint8_t             _matrixWidth  = 8;
-  uint8_t             _matrixHeight = 8;
-  uint8_t             _tileWidth    = 1;
-  uint8_t             _tileHeight   = 1;
-  int8_t              _pin          = -1;
-  uint8_t             _matrixType   = NEO_MATRIX_TOP | NEO_MATRIX_LEFT | NEO_MATRIX_ROWS | NEO_MATRIX_PROGRESSIVE;
-  uint8_t             _ledType      = NEO_TILE_TOP | NEO_TILE_LEFT | NEO_TILE_ROWS | NEO_TILE_PROGRESSIVE;
-  uint8_t             _rotation     = 0;
-  uint8_t             _fontscaling  = 1;
-  AdaGFXTextPrintMode _textmode     = AdaGFXTextPrintMode::ContinueToNextLine;
+  uint8_t _matrixWidth  = 8;
+  uint8_t _matrixHeight = 8;
+  uint8_t _tileWidth    = 1;
+  uint8_t _tileHeight   = 1;
+  int8_t  _pin          = -1;
+  uint8_t _matrixType   = NEO_MATRIX_TOP | NEO_MATRIX_LEFT | NEO_MATRIX_ROWS | NEO_MATRIX_PROGRESSIVE |
+                          NEO_TILE_TOP | NEO_TILE_LEFT | NEO_TILE_ROWS | NEO_TILE_PROGRESSIVE;
+  uint8_t             _rotation    = 0;
+  uint8_t             _fontscaling = 1;
+  AdaGFXTextPrintMode _textmode    = AdaGFXTextPrintMode::ContinueToNextLine;
   String              _commandTrigger;
   uint8_t             _brightness = 40;
   uint8_t             _maxbright  = 255;
+  neoPixelType        _ledType    = NEO_GRB + NEO_KHZ800;
   uint16_t            _fgcolor    = ADAGFX_WHITE;
   uint16_t            _bgcolor    = ADAGFX_BLACK;
 
@@ -166,6 +171,7 @@ private:
 
   String strings[P131_Nlines]; // Read once
   bool   stringsInitialized = false;
+  bool   stringsHasContent  = false;
 
   std::vector<P131_content_struct>content;
   bool                            contentInitialized = false;

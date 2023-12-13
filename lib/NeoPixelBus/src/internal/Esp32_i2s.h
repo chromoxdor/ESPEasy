@@ -1,7 +1,10 @@
 #pragma once
 
+#include "sdkconfig.h" // this sets useful config symbols, like CONFIG_IDF_TARGET_ESP32C3
+
+#ifndef CONFIG_SOC_RMT_TX_CANDIDATES_PER_GROUP // turn this off with something new from idf5.1
 // ESP32C3 I2S is not supported yet due to significant changes to interface
-#if defined(ARDUINO_ARCH_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+#if defined(ARDUINO_ARCH_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32C2)
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,8 +30,6 @@ void i2sInit(uint8_t bus_num,
     size_t dma_count, 
     size_t dma_len);
 
-void i2sDeinit(uint8_t bus_num);
-
 void i2sSetPins(uint8_t bus_num, int8_t out, bool invert);
 
 esp_err_t i2sSetClock(uint8_t bus_num, uint8_t div_num, uint8_t div_b, uint8_t div_a, uint8_t bck, uint8_t bits_per_sample);
@@ -40,5 +41,5 @@ bool i2sWriteDone(uint8_t bus_num);
 #ifdef __cplusplus
 }
 #endif
-
 #endif
+#endif // ESP_IDF_VERSION_MAJOR < 5

@@ -6,12 +6,15 @@
 
 #include "../CustomBuild/CompiletimeDefines.h"
 
+#include "../DataStructs/TimingStats.h"
+
 #include "../Globals/Cache.h"
 #include "../Globals/Nodes.h"
 #include "../Globals/Device.h"
 #include "../Globals/Plugins.h"
 #include "../Globals/NPlugins.h"
 
+#include "../Helpers/_Plugin_init.h"
 #include "../Helpers/ESPEasyStatistics.h"
 #include "../Helpers/ESPEasy_Storage.h"
 #include "../Helpers/Hardware.h"
@@ -105,6 +108,7 @@ void handle_csvval()
 // ********************************************************************************
 void handle_json()
 {
+  START_TIMER
   const taskIndex_t taskNr    = getFormItemInt(F("tasknr"), INVALID_TASK_INDEX);
   const bool showSpecificTask = validTaskIndex(taskNr);
   bool showSystem             = true;
@@ -121,7 +125,7 @@ void handle_json()
   {
     const String view = webArg(F("view"));
 
-    if (view.equals(F("sensorupdate"))) {
+    if (equals(view, F("sensorupdate"))) {
       showSystem = false;
       showWifi   = false;
       #if FEATURE_ETHERNET
@@ -252,9 +256,7 @@ void handle_json()
         LabelType::WIFI_STORED_SSID2,
         LabelType::FORCE_WIFI_BG,
         LabelType::RESTART_WIFI_LOST_CONN,
-#ifdef ESP8266
         LabelType::FORCE_WIFI_NOSLEEP,
-#endif // ifdef ESP8266
 #ifdef SUPPORT_ARP
         LabelType::PERIODICAL_GRAT_ARP,
 #endif // ifdef SUPPORT_ARP
@@ -263,7 +265,7 @@ void handle_json()
         LabelType::FORCE_ESPEASY_NOW_CHANNEL,
 #endif
         LabelType::CONNECTION_FAIL_THRESH,
-#ifdef ESP8266 // TD-er: Disable setting TX power on ESP32 as it seems to cause issues on IDF4.4
+#if FEATURE_SET_WIFI_TX_PWR
         LabelType::WIFI_TX_MAX_PWR,
         LabelType::WIFI_CUR_TX_PWR,
         LabelType::WIFI_SENS_MARGIN,
@@ -323,7 +325,7 @@ void handle_json()
           addHtml('{');
           stream_next_json_object_value(F("nr"), it->first);
           stream_next_json_object_value(F("name"),
-                                        (it->first != Settings.Unit) ? it->second.getNodeName() : Settings.Name);
+                                        (it->first != Settings.Unit) ? it->second.getNodeName() : Settings.getName());
 
           if (it->second.build) {
             stream_next_json_object_value(F("build"), formatSystemBuildNr(it->second.build));
@@ -336,7 +338,7 @@ void handle_json()
           if (rssi < 0) {
             stream_next_json_object_value(F("rssi"), rssi);
           }
-          stream_next_json_object_value(F("ip"), it->second.IP().toString());
+          stream_next_json_object_value(F("ip"), formatIP(it->second.IP()));
           stream_last_json_object_value(F("age"), it->second.getAge());
         } // if node info exists
       }   // for loop
@@ -359,7 +361,7 @@ void handle_json()
   taskIndex_t lastActiveTaskIndex = 0;
 
   for (taskIndex_t TaskIndex = firstTaskIndex; TaskIndex <= lastTaskIndex; TaskIndex++) {
-    if (validPluginID_fullcheck(Settings.TaskDeviceNumber[TaskIndex])) {
+    if (validPluginID_fullcheck(Settings.getPluginID_for_task(TaskIndex))) {
       lastActiveTaskIndex = TaskIndex;
     }
   }
@@ -411,7 +413,7 @@ void handle_json()
             nrDecimals = 255;
           }
           stream_next_json_object_value(F("ValueNumber"), x + 1);
-          stream_next_json_object_value(F("Name"),        getTaskValueName(TaskIndex, x));
+          stream_next_json_object_value(F("Name"),        Cache.getTaskDeviceValueName(TaskIndex, x));
           stream_next_json_object_value(F("NrDecimals"),  nrDecimals);
           stream_last_json_object_value(F("Value"), value);
 
@@ -447,7 +449,7 @@ void handle_json()
         stream_next_json_object_value(F("TaskInterval"),     taskInterval);
         stream_next_json_object_value(F("Type"),             getPluginNameFromDeviceIndex(DeviceIndex));
         stream_next_json_object_value(F("TaskName"),         getTaskDeviceName(TaskIndex));
-        stream_next_json_object_value(F("TaskDeviceNumber"), Settings.TaskDeviceNumber[TaskIndex]);
+        stream_next_json_object_value(F("TaskDeviceNumber"), Settings.getPluginID_for_task(TaskIndex).value);
         for(int i = 0; i < 3; i++) {
           if (Settings.TaskDevicePin[i][TaskIndex] >= 0) {
             stream_next_json_object_value(concat(F("TaskDeviceGPIO"), i + 1) , String(Settings.TaskDevicePin[i][TaskIndex]));
@@ -482,7 +484,10 @@ void handle_json()
         }
         #endif // if FEATURE_I2CMULTIPLEXER
       }
-      stream_next_json_object_value(F("TaskEnabled"), jsonBool(Settings.TaskDeviceEnabled[TaskIndex]));
+      stream_next_json_object_value(F("TaskEnabled"), 
+        // jsonBool(Settings.TaskDeviceEnabled[TaskIndex].enabled));
+        jsonBool(Settings.TaskDeviceEnabled[TaskIndex]));
+
       stream_last_json_object_value(F("TaskNumber"), TaskIndex + 1);
 
       if (TaskIndex != lastActiveTaskIndex) {
@@ -498,6 +503,7 @@ void handle_json()
   }
 
   TXBuffer.endStream();
+  STOP_TIMER(HANDLE_SERVING_WEBPAGE_JSON);
 }
 
 // ********************************************************************************
@@ -539,11 +545,11 @@ void handle_nodes_list_json() {
       }
 
       json_number(F("first"), String(it->first));
-      json_prop(F("name"), isThisUnit ? Settings.Name : it->second.getNodeName());
+      json_prop(F("name"), isThisUnit ? Settings.getName() : it->second.getNodeName());
 
       if (it->second.build) { json_prop(F("build"), formatSystemBuildNr(it->second.build)); }
       json_prop(F("type"), it->second.getNodeTypeDisplayString());
-      json_prop(F("ip"),   it->second.ip.toString());
+      json_prop(F("ip"),   formatIP(it->second.ip));
       json_number(F("age"), String(it->second.getAge() / 1000)); // time in seconds
       json_close();
     }
@@ -561,10 +567,11 @@ void handle_buildinfo() {
   {
     json_open(true, F("plugins"));
 
-    for (deviceIndex_t x = 0; x <= deviceCount; x++) {
-      if (validPluginID(DeviceIndex_to_Plugin_id[x])) {
+    for (deviceIndex_t x; x <= getDeviceCount(); x++) {
+      const pluginID_t pluginID = getPluginID_from_DeviceIndex(x);
+      if (validPluginID(pluginID)) {
         json_open();
-        json_number(F("id"), String(DeviceIndex_to_Plugin_id[x]));
+        json_number(F("id"), String(pluginID));
         json_prop(F("name"), getPluginNameFromDeviceIndex(x));
         json_close();
       }
@@ -574,7 +581,7 @@ void handle_buildinfo() {
   {
     json_open(true, F("controllers"));
 
-    for (protocolIndex_t x = 0; x < CPLUGIN_MAX; x++) {
+    for (protocolIndex_t x = 0; x < getHighestIncludedCPluginID(); x++) {
       if (getCPluginID_from_ProtocolIndex(x) != INVALID_C_PLUGIN_ID) {
         json_open();
         json_number(F("id"), String(x + 1));
@@ -690,9 +697,9 @@ void stream_last_json_object_value(const __FlashStringHelper * object, int value
 void stream_json_object_values(const LabelType::Enum labels[])
 {
   size_t i = 0;
+  LabelType::Enum cur  = static_cast<const LabelType::Enum>(pgm_read_byte(labels + i));
 
   while (true) {
-    const LabelType::Enum cur  = static_cast<const LabelType::Enum>(pgm_read_byte(labels + i));
     const LabelType::Enum next = static_cast<const LabelType::Enum>(pgm_read_byte(labels + i + 1));
     const bool nextIsLast      = next == LabelType::MAX_LABEL;
 
@@ -703,6 +710,7 @@ void stream_json_object_values(const LabelType::Enum labels[])
       stream_next_json_object_value(cur);
     }
     ++i;
+    cur = next;
   }
 }
 

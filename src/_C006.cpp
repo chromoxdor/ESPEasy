@@ -28,14 +28,14 @@ bool CPlugin_006(CPlugin::Function function, struct EventStruct *event, String& 
   {
     case CPlugin::Function::CPLUGIN_PROTOCOL_ADD:
     {
-      Protocol[++protocolCount].Number     = CPLUGIN_ID_006;
-      Protocol[protocolCount].usesMQTT     = true;
-      Protocol[protocolCount].usesTemplate = true;
-      Protocol[protocolCount].usesAccount  = false;
-      Protocol[protocolCount].usesPassword = false;
-      Protocol[protocolCount].usesExtCreds = true;
-      Protocol[protocolCount].defaultPort  = 1883;
-      Protocol[protocolCount].usesID       = false;
+      ProtocolStruct& proto = getProtocolStruct(event->idx); //      = CPLUGIN_ID_006;
+      proto.usesMQTT     = true;
+      proto.usesTemplate = true;
+      proto.usesAccount  = false;
+      proto.usesPassword = false;
+      proto.usesExtCreds = true;
+      proto.defaultPort  = 1883;
+      proto.usesID       = false;
       break;
     }
 
@@ -84,7 +84,7 @@ bool CPlugin_006(CPlugin::Function function, struct EventStruct *event, String& 
 
       String name = topicSplit[4];
 
-      if (name == Settings.Name)
+      if (name.equals(Settings.getName()))
       {
         String cmd = topicSplit[5];
         cmd += ',';
@@ -107,6 +107,10 @@ bool CPlugin_006(CPlugin::Function function, struct EventStruct *event, String& 
 
     case CPlugin::Function::CPLUGIN_PROTOCOL_SEND:
     {
+      if (MQTT_queueFull(event->ControllerIndex)) {
+        break;
+      }
+
       String pubname         = CPlugin_006_pubname;
       bool   mqtt_retainFlag = CPlugin_006_mqtt_retainFlag;
 
@@ -124,10 +128,12 @@ bool CPlugin_006(CPlugin::Function function, struct EventStruct *event, String& 
 
         // Small optimization so we don't try to copy potentially large strings
         if (event->sensorType == Sensor_VType::SENSOR_TYPE_STRING) {
-          MQTTpublish(event->ControllerIndex, event->TaskIndex, tmppubname.c_str(), event->String2.c_str(), mqtt_retainFlag);
+          if (MQTTpublish(event->ControllerIndex, event->TaskIndex, tmppubname.c_str(), event->String2.c_str(), mqtt_retainFlag))
+            success = true;
         } else {
           String value = formatUserVarNoCheck(event, x);
-          MQTTpublish(event->ControllerIndex, event->TaskIndex, tmppubname.c_str(), value.c_str(), mqtt_retainFlag);
+          if (MQTTpublish(event->ControllerIndex, event->TaskIndex, tmppubname.c_str(), value.c_str(), mqtt_retainFlag))
+            success = true;
         }
       }
       break;
