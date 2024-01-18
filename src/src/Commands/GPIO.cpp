@@ -13,7 +13,7 @@
 #include "../Globals/ESPEasy_Scheduler.h"
 #include "../Globals/GlobalMapPortStatus.h"
 #include "../Helpers/Audio.h"
-#include "../Helpers/Hardware.h"
+#include "../Helpers/Hardware_PWM.h"
 #include "../Helpers/StringConverter.h"
 #include "../Helpers/PortStatus.h"
 #include "../Helpers/Numerical.h"
@@ -288,6 +288,7 @@ const __FlashStringHelper * Command_GPIO_Status(struct EventStruct *event, const
 {
   bool sendStatusFlag;
   pluginID_t pluginID;
+  int8_t value = -1;
 
   switch (tolower(parseString(Line, 2).charAt(0)))
   {
@@ -298,13 +299,15 @@ const __FlashStringHelper * Command_GPIO_Status(struct EventStruct *event, const
 #ifdef USES_P009
     case 'm': // mcp
       pluginID       = PLUGIN_MCP;
-      sendStatusFlag = GPIO_MCP_Read(event->Par2) == -1;
+      value          = GPIO_MCP_Read(event->Par2);
+      sendStatusFlag = value == -1;
       break;
 #endif
 #ifdef USES_P019
     case 'p': // pcf
       pluginID       = PLUGIN_PCF;
-      sendStatusFlag = GPIO_PCF_Read(event->Par2) == -1;
+      value          = GPIO_PCF_Read(event->Par2);
+      sendStatusFlag = value == -1;
       break;
 #endif
     default:
@@ -318,7 +321,7 @@ const __FlashStringHelper * Command_GPIO_Status(struct EventStruct *event, const
   }
   const uint32_t key = createKey(pluginID, event->Par2); // WARNING: 'status' uses Par2 instead of Par1
   String dummy;
-  SendStatusOnlyIfNeeded(event, sendStatusFlag, key, dummy, 0);
+  SendStatusOnlyIfNeeded(event, sendStatusFlag, key, dummy, value);
   return return_command_success_flashstr();
 }
 
@@ -1182,12 +1185,12 @@ bool getGPIOPinStateValues(String& str) {
   const String command    = parseString(str, 2);
   const String gpio_descr = parseString(str, 3);
 
-  if ((command.length() >= 8) && command.equalsIgnoreCase(F("pinstate")) && (device.length() > 0)) {
+  if ((command.length() >= 8) && equals(command, F("pinstate")) && (device.length() > 0)) {
     #ifndef BUILD_NO_DEBUG
     String logPrefix;
     #endif
     // returns pin value using syntax: [plugin#xxxxxxx#pinstate#x]
-    int par1;
+    int32_t par1{};
     const bool validArgument = validIntFromString(gpio_descr, par1);
     #if FEATURE_PINSTATE_EXTENDED
     pluginID_t pluginID = INVALID_PLUGIN_ID;
@@ -1236,7 +1239,7 @@ bool getGPIOPinStateValues(String& str) {
         default:
         {
           #if FEATURE_PINSTATE_EXTENDED
-          unsigned int plugin = INVALID_PLUGIN_ID.value;
+          uint32_t plugin = INVALID_PLUGIN_ID.value;
           if (validUIntFromString(device, plugin) && (plugin != INVALID_PLUGIN_ID.value)) { // Valid plugin ID?
             pluginID.value  = plugin;
             #ifndef BUILD_NO_DEBUG
@@ -1274,9 +1277,9 @@ bool getGPIOPinStateValues(String& str) {
     } else {
       addLog(LOG_LEVEL_ERROR, F(" PLUGIN PINSTATE. Syntax error. Pin parameter is not numeric"));
     }
-  } else if ((command.length() >= 8) && command.equalsIgnoreCase(F("pinrange"))) {
+  } else if ((command.length() >= 8) && equals(command, F("pinrange"))) {
     // returns pin value using syntax: [plugin#xxxxxxx#pinrange#x-y]
-    int  par1, par2;
+    int32_t  par1, par2;
     bool successPar = false;
     int  dashpos    = gpio_descr.indexOf('-');
 
