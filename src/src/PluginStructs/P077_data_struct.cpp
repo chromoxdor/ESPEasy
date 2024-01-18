@@ -321,7 +321,7 @@ bool P077_data_struct::plugin_read(struct EventStruct *event) {
       float value{};
 
       if (_cache[index].peek(value)) {
-        UserVar[event->BaseVarIndex + i] = value;
+        UserVar.setFloat(event->TaskIndex, i,  value);
       }
     }
   }
@@ -353,6 +353,10 @@ bool P077_data_struct::plugin_write(struct EventStruct *event,
     P077_PREF = CSE_PREF_PULSE;
     success   = true;
     changed   = true;
+  } else if (equals(cmd, F("cseclearpulses"))) {
+    // Clear the pulses count
+    last_cf_pulses = 0;
+    cf_pulses = 0;
   } else if (equals(cmd, F("csecalibrate"))) { // Set 1 or more calibration values, 0 will skip that value
     success = true;
     float CalibVolt  = 0.0f;
@@ -434,7 +438,7 @@ void P077_data_struct::setOutputValue(struct EventStruct *event, P077_query outp
         // Set preliminary averaged value as task value.
         // This way we can see intermediate updates.
         _cache[index].peek(value);
-        UserVar[event->BaseVarIndex + i] = value;
+        UserVar.setFloat(event->TaskIndex, i,  value);
       }
     }
   }
