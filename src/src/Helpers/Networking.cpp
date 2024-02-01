@@ -1561,6 +1561,7 @@ int http_authenticate(const String& logIdentifier,
     // Generate event with the HTTP return code
     // e.g. http#hostname=401
     eventQueue.addMove(strformat(F("http#%s=%d"), host.c_str(), httpCode));
+    
     #if FEATURE_THINGSPEAK_EVENT
       // Generate event with the response of a 
       // thingspeak request (https://de.mathworks.com/help/thingspeak/readlastfieldentry.html &
