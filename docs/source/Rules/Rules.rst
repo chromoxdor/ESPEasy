@@ -1997,17 +1997,14 @@ Added: 2023/10/26
      
 .. warning:: When using the command for all fields, the reply can become extremely big and can lead to memory issues which results in instabilities of your device (especially when all eight fields are filled with very big numbers)
 
-* Example for two single field events in rules:
+* Rules example:
 
 .. code:: none
 
   on ThinkspeakReply do
     LogEntry,'The channel number is: %eventvalue1%'
-    if %eventvalue2% = 5			  //when the field number is 5
-      LogEntry,'%eventvalue3%°C in Berlin'
-    elseif %eventvalue2% = 6		//when the field number is 6
-      LogEntry,'%eventvalue3%°C in Paris'
-    endif
+    LogEntry,'%eventvalue3%°C in Berlin'
+    LogEntry,'%eventvalue3%°C in Paris'
   endon
 
 
