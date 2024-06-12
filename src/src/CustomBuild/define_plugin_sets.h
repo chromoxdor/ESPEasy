@@ -3345,4 +3345,20 @@ To create/register a plugin, you have to :
     #endif
   #endif
 
+  #ifndef FEATURE_OWEATHER_EVENT
+    #ifdef LIMIT_BUILD_SIZE
+      #define FEATURE_OWEATHER_EVENT 0
+    #else
+      #define FEATURE_OWEATHER_EVENT 1
+    #endif
+  #endif
+
+  #ifndef FEATURE_OMETEO_EVENT
+    #ifdef LIMIT_BUILD_SIZE
+      #define FEATURE_OMETEO_EVENT 0
+    #else
+      #define FEATURE_OMETEO_EVENT 1
+    #endif
+  #endif
+
 #endif // CUSTOMBUILD_DEFINE_PLUGIN_SETS_H

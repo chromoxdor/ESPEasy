@@ -1562,7 +1562,7 @@ int http_authenticate(const String& logIdentifier,
     // e.g. http#hostname=401
     eventQueue.addMove(strformat(F("http#%s=%d"), host.c_str(), httpCode));
     
-    #if FEATURE_THINGSPEAK_EVENT
+#if FEATURE_THINGSPEAK_EVENT
       // Generate event with the response of a 
       // thingspeak request (https://de.mathworks.com/help/thingspeak/readlastfieldentry.html &
       // https://de.mathworks.com/help/thingspeak/readdata.html)
@@ -1603,40 +1603,118 @@ int http_authenticate(const String& logIdentifier,
       }
     }
 #endif
-    //#if FEATURE_OWEATHER_EVENT
+#if FEATURE_OWEATHER_EVENT
       // Generate event with the response of a openweathermap request (https://openweathermap.org/api/one-call-api)
       // Example command: sendtohttp,api.openweathermap.org,80,/data/2.5/weather?id=2950159&units=metric&appid=<your appid>
       // For the app id you have to register (https://home.openweathermap.org/users/sign_up)
       // The location id you´ll get by finding a city/village on the website and get the id at the end of the url (e.g. https://openweathermap.org/city/2950159)
-      // Example of the event: "EVENT: OpenweatherReply=<id>,<temp>,<feels_like>,<temp_min>,<temp_max>,<pressure>,<humidity>,<windspeed_m/s>,<wind_direction>,<condition>,<condition_string>"
+      // Example of the event: "EVENT: OpenweatherReply=<id>,<temp>,<temp_min>,<temp_max>,<pressure>,<humidity>,<windspeed_m/s>,<wind_direction>,<condition>,<condition_string>"
       // A cheatsheet for the weather-conditions (<condition>) can be found here: https://openweathermap.org/weather-conditions
       // In rules you can grep the reply by "On OpenweatherReply Do ..."
       //
       // Note: The 2.5 API is deprecated but i couldn´t find an official statement if and when it will be discontinued
       // The "2.5 API is still working with the new API-keys
-      // This feauture will get removed as soon as the 2.5 API stops working. There will be no update to 3.0
-      
-      if (httpCode == 200 && equals(host, F("api.openweathermap.org"))) {
-          String result = http.getString(); 
-          result.replace('[', '_'); //get rid of these otherwise parsing won´t work
-          result.replace(']', '_');
-          String wVals;
-          String res;
-          int Num[11]{25, 8, 9, 10, 11, 12, 13, 17, 18, 3, 5};  
+      // This feauture will be removed as soon as the 2.5 API stops working. There will be no update to 3.0
 
-          for (int i : Num) {
-            res = parseStringKeepCase(result, i);
-            res = res.substring(res.lastIndexOf(':')+1);
-            if (res.endsWith("}")) {res = res.substring(0,res.lastIndexOf('}'));} //get rid of unwanted characters
-            if (i == 5) {res = res+ "'";}                       
-            wVals += res;
-            if (i != 5) {wVals += ",";}
+    if (httpCode == 200 && equals(host, F("api.openweathermap.org")))
+    {
+      String str = http.getString();
+      String keys[] = {"id","temp","temp_min","temp_max","pressure","humidity","speed","deg","id","description"};
+
+      String csv = "";
+      for (int i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+      {
+        String key = keys[i];
+        String value = "";
+        int startIndex = str.indexOf(key + "\":");
+        if (i == 0) { // since there are two id´s, we have to search for the second one first
+          startIndex = str.indexOf(key + "\":", startIndex + 1);
+          startIndex = str.indexOf(key + "\":", startIndex + 1);
+        }
+        if (startIndex == -1)
+        {
+          // Handle case where key is not found
+          value = "-256"; // Placeholder value
+        }
+        else
+        {
+          startIndex += key.length() + 2; // Move index past the key
+          int endIndex = str.indexOf(",", startIndex);
+          if (endIndex == -1 || endIndex > str.indexOf("}", startIndex))
+          {
+            endIndex = str.indexOf("}", startIndex); // If no comma is found or comma comes after }, take the rest of the string
           }
 
-          eventQueue.addMove(strformat(F("OpenweatherReply=%s"),                                            
-            wVals.c_str()));
+          value = str.substring(startIndex, endIndex);
+          value.trim(); // Remove any surrounding whitespace
         }
-    //#endif
+
+        //if (value != "-256")
+        //{
+          if (csv != "")
+          {
+            csv += ",";
+          }
+          csv += value;
+       // }
+      }
+      eventQueue.addMove(strformat(F("OpenweatherReply=%s"),
+                                   csv.c_str()));
+    }
+#endif
+#if FEATURE_OMETEO_EVENT
+      // Generate event with the response of a openweathermap request (https://open-meteo.com/en/docs)
+      // Example command: sendtohttp,api.open-meteo.com,80,/v1/forecast?latitude=52.52&longitude=13.41
+      // Visit the URL and build your personal URL by selecting the location and values you want to receive.
+      // More keys can be added then to the keys array below.
+
+    if (httpCode == 200 && equals(host, F("api.open-meteo.com")))
+    {
+      String str = http.getString();
+      String keys[] = {"temperature_2m","temperature_2m_min","temperature_2m_max","relative_humidity_2m","pressure_msl","wind_speed_10m","wind_direction_10m","weather_code"};
+
+      str.replace("[", ""); // get rid of the brackets since the temp min and max vals are wrapped in them
+      str.replace("]", "");
+
+      String csv = "";
+      for (int i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+      {
+        String key = keys[i];
+        String value = "";
+        int startIndex = str.indexOf(key + "\":");
+        startIndex = str.indexOf(key + "\":", startIndex + 1); //find always second occurence of key
+  
+        if (startIndex == -1)
+        {
+          // Handle case where key is not found
+          value = "-256"; // Placeholder value
+        }
+        else
+        {
+          startIndex += key.length() + 2; // Move index past the key
+          int endIndex = str.indexOf(",", startIndex);
+          if (endIndex == -1 || endIndex > str.indexOf("}", startIndex))
+          {
+            endIndex = str.indexOf("}", startIndex); // If no comma is found or comma comes after }, take the rest of the string
+          }
+
+          value = str.substring(startIndex, endIndex);
+          value.trim(); // Remove any surrounding whitespace
+        }
+
+        //if (value != "-256")
+        //{
+          if (csv != "")
+          {
+            csv += ",";
+          }
+          csv += value;
+       // }
+      }
+      eventQueue.addMove(strformat(F("OpenMeteoReply=%s"),
+                                   csv.c_str()));
+    }
+#endif
   }
   
 #ifndef BUILD_NO_DEBUG
