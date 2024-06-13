@@ -1714,7 +1714,7 @@ int http_authenticate(const String& logIdentifier,
     }
 #endif
 #if FEATURE_OMETEO_EVENT
-    // Generate event with the response of a openweathermap request (https://open-meteo.com/en/docs)
+    // Generate event with the response of a open-meteo request (https://open-meteo.com/en/docs)
     // Example command: sendtohttp,api.open-meteo.com,80,/v1/forecast?latitude=52.52&longitude=13.41
     // No need for an api key and it is free (daily requests are limited to 10,000 in the free version)
     // Visit the URL and build your personal URL by selecting the location and values you want to receive.
