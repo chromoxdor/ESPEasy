@@ -26,6 +26,9 @@
 #if FEATURE_NOTIFIER
 # include "../Commands/Notifications.h"
 #endif // if FEATURE_NOTIFIER
+#if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
+#include "../Commands/OneWire.h"
+#endif // if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
 #include "../Commands/Provisioning.h"
 #include "../Commands/RTC.h"
 #include "../Commands/Rules.h"
@@ -347,9 +350,12 @@ bool InternalCommands::executeInternalCommand()
     case ESPEasy_cmd_e::name:                       COMMAND_CASE_R(Command_Settings_Name,        1);         // Settings.h
     case ESPEasy_cmd_e::nosleep:                    COMMAND_CASE_R(Command_System_NoSleep,       1);         // System.h
 #if FEATURE_NOTIFIER
-    case ESPEasy_cmd_e::notify:                     COMMAND_CASE_R(Command_Notifications_Notify, 2);         // Notifications.h
+    case ESPEasy_cmd_e::notify:                     COMMAND_CASE_R(Command_Notifications_Notify, -1);        // Notifications.h
 #endif // if FEATURE_NOTIFIER
     case ESPEasy_cmd_e::ntphost:                    COMMAND_CASE_R(Command_NTPHost,              1);         // Time.h
+#if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
+    case ESPEasy_cmd_e::owscan:                     COMMAND_CASE_R(Command_OneWire_Owscan,       -1);         // OneWire.h
+#endif // if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
 #ifdef USES_P019
     case ESPEasy_cmd_e::pcfgpio:                    COMMAND_CASE_A(Command_GPIO,                 2);         // Gpio.h
     case ESPEasy_cmd_e::pcfgpiorange:               COMMAND_CASE_A(Command_GPIO_PcfGPIORange,   -1);         // Gpio.h
@@ -383,6 +389,7 @@ bool InternalCommands::executeInternalCommand()
     case ESPEasy_cmd_e::pulse:                      COMMAND_CASE_A(Command_GPIO_Pulse,        3);                 // GPIO.h
 #if FEATURE_MQTT
     case ESPEasy_cmd_e::publish:                    COMMAND_CASE_A(Command_MQTT_Publish,     -1);                 // MQTT.h
+    case ESPEasy_cmd_e::publishr:                   COMMAND_CASE_A(Command_MQTT_PublishR,    -1);                 // MQTT.h
 #endif // if FEATURE_MQTT
 #if FEATURE_PUT_TO_HTTP
     case ESPEasy_cmd_e::puttohttp:                  COMMAND_CASE_A(Command_HTTP_PutToHTTP,  -1);                  // HTTP.h

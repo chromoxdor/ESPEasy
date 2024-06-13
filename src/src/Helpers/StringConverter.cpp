@@ -22,6 +22,7 @@
 #include "../Helpers/Misc.h"
 #include "../Helpers/Networking.h"
 #include "../Helpers/Numerical.h"
+#include "../Helpers/StringGenerator_System.h"
 #include "../Helpers/StringParser.h"
 #include "../Helpers/SystemVariables.h"
 #include "../Helpers/_Plugin_SensorTypeHelper.h"
@@ -117,7 +118,7 @@ String strformat(const String& format, ...)
   {
     va_list arg;
     va_start(arg, format); // variable args start after parameter 'format'
-    char temp[64];
+    static char temp[64];
     char* buffer = temp;
     int len = vsnprintf_P(temp, sizeof(temp), format.c_str(), arg);
     va_end(arg);
@@ -147,7 +148,7 @@ String strformat(const __FlashStringHelper * format, ...)
   {
     va_list arg;
     va_start(arg, format); // variable args start after parameter 'format'
-    char temp[64];
+    static char temp[64];
     char* buffer = temp;
     int len = vsnprintf_P(temp, sizeof(temp), (PGM_P)format, arg);
     va_end(arg);
@@ -437,7 +438,7 @@ String doFormatUserVar(struct EventStruct *event, uint8_t rel_index, bool mustCh
     return EMPTY_STRING;
   }
 
-  {
+  if (Device[DeviceIndex].HasFormatUserVar) {
     // First try to format using the plugin specific formatting.
     String result;
     EventStruct tempEvent;
@@ -448,7 +449,8 @@ String doFormatUserVar(struct EventStruct *event, uint8_t rel_index, bool mustCh
       return result;
     }
   }
-
+  
+  // Spent upto 400 usec till here
   const uint8_t valueCount      = getValueCountForTask(event->TaskIndex);
   const Sensor_VType sensorType = event->getSensorType();
 
@@ -495,7 +497,7 @@ String doFormatUserVar(struct EventStruct *event, uint8_t rel_index, bool mustCh
   }
   String res =  UserVar.getAsString(event->TaskIndex, rel_index, sensorType, nrDecimals);
   STOP_TIMER(FORMAT_USER_VAR);
-  return res;
+  return std::move(res);
 }
 
 String formatUserVarNoCheck(taskIndex_t TaskIndex, uint8_t rel_index) {
@@ -1462,6 +1464,15 @@ void parseStandardConversions(String& s, bool useURLencode) {
   SMART_CONV(F("%c_m2hcm%"),  minutesToHourColonMinute(data.arg1))
   SMART_CONV(F("%c_s2dhms%"), secondsToDayHourMinuteSecond(data.arg1))
   SMART_CONV(F("%c_2hex%"),   formatToHex_no_prefix(data.arg1))
+  #if FEATURE_ESPEASY_P2P
+  SMART_CONV(F("%c_uname%"),  getNameForUnit(data.arg1))
+  SMART_CONV(F("%c_uage%"),   String(static_cast<int32_t>(getAgeForUnit(data.arg1) / 1000)))
+  SMART_CONV(F("%c_ubuild%"), String(getBuildnrForUnit(data.arg1)))
+  SMART_CONV(F("%c_ubuildstr%"), formatSystemBuildNr(getBuildnrForUnit(data.arg1)))
+  SMART_CONV(F("%c_uload%"),  toString(getLoadForUnit(data.arg1)))
+  SMART_CONV(F("%c_utype%"),  String(getTypeForUnit(data.arg1)))
+  SMART_CONV(F("%c_utypestr%"), getTypeStringForUnit(data.arg1))
+  #endif // if FEATURE_ESPEASY_P2P
   #undef SMART_CONV
 
   // Conversions with 2 parameters

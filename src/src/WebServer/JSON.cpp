@@ -84,11 +84,13 @@ void handle_csvval()
         addHtml('\n');
       }
 
+      struct EventStruct TempEvent(taskNr);
+
       for (uint8_t x = 0; x < taskValCount; x++)
       {
         if ((valNr == INVALID_VALUE_NUM) || (valNr == x))
         {
-          addHtml(formatUserVarNoCheck(taskNr, x));
+          addHtml(formatUserVarNoCheck(&TempEvent, x));
 
           if (x != taskValCount - 1)
           {
@@ -210,6 +212,13 @@ void handle_json()
     #ifdef ESP32
         LabelType::ESP_CHIP_REVISION,
     #endif // ifdef ESP32
+        LabelType::FLASH_CHIP_ID,
+        LabelType::FLASH_CHIP_VENDOR,
+        LabelType::FLASH_CHIP_MODEL,
+        LabelType::FLASH_CHIP_REAL_SIZE,
+        LabelType::FLASH_CHIP_SPEED,
+        LabelType::FLASH_IDE_MODE,
+        LabelType::FS_SIZE,
 
         LabelType::SUNRISE,
         LabelType::SUNSET,
@@ -244,6 +253,7 @@ void handle_json()
 #if FEATURE_USE_IPV6
         LabelType::IP6_LOCAL,
         LabelType::IP6_GLOBAL,
+        LabelType::ENABLE_IPV6,
 #endif
         LabelType::IP_SUBNET,
         LabelType::GATEWAY,
@@ -281,6 +291,10 @@ void handle_json()
         LabelType::WIFI_USE_LAST_CONN_FROM_RTC,
         LabelType::WIFI_RSSI,
 
+        LabelType::WAIT_WIFI_CONNECT,
+        LabelType::HIDDEN_SSID_SLOW_CONNECT,
+        LabelType::CONNECT_HIDDEN_SSID,
+        LabelType::SDK_WIFI_AUTORECONNECT,
 
         LabelType::MAX_LABEL
       };
@@ -299,6 +313,7 @@ void handle_json()
       {
         LabelType::ETH_WIFI_MODE,
         LabelType::ETH_CONNECTED,
+        LabelType::ETH_CHIP,
         LabelType::ETH_DUPLEX,
         LabelType::ETH_SPEED,
         LabelType::ETH_STATE,
@@ -422,10 +437,12 @@ void handle_json()
         }
         addHtml(F("\"TaskValues\": [\n"));
 
+        struct EventStruct TempEvent(TaskIndex);
+
         for (uint8_t x = 0; x < valueCount; x++)
         {
           addHtml('{');
-          const String value = formatUserVarNoCheck(TaskIndex, x);
+          const String value = formatUserVarNoCheck(&TempEvent, x);
           uint8_t nrDecimals    = Cache.getTaskDeviceValueDecimals(TaskIndex, x);
 
           if (mustConsiderAsJSONString(value)) {

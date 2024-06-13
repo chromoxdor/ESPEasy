@@ -69,8 +69,11 @@ bool ethCheckSettings() {
 #endif
       && isValid(Settings.NetworkMedium)
       && validGpio(Settings.ETH_Pin_mdc_cs)
-      && validGpio(Settings.ETH_Pin_mdio_irq)
-      && (validGpio(Settings.ETH_Pin_power_rst) || (Settings.ETH_Pin_power_rst == -1)); // Some boards have fixed power
+      && (isSPI_EthernetType(Settings.ETH_Phy_Type) ||
+          ( validGpio(Settings.ETH_Pin_mdio_irq) && 
+            (validGpio(Settings.ETH_Pin_power_rst) || (Settings.ETH_Pin_power_rst == -1))
+          )
+        ); // Some boards have fixed power
 }
 
 bool ethPrepare() {
@@ -166,7 +169,9 @@ bool ETHConnectRelaxed() {
       (eth_clock_mode_t)Settings.ETH_Clock_Mode);
 #else
 #if FEATURE_USE_IPV6
-    ETH.enableIPv6(true);
+    if (Settings.EnableIPv6()) {
+      ETH.enableIPv6(true);
+    }
 #endif
 
     if (isSPI_EthernetType(Settings.ETH_Phy_Type)) {
@@ -184,6 +189,15 @@ bool ETHConnectRelaxed() {
       }
       // else 
       {
+#if ETH_SPI_SUPPORTS_CUSTOM
+        EthEventData.ethInitSuccess = ETH.begin( 
+          to_ESP_phy_type(Settings.ETH_Phy_Type),
+          Settings.ETH_Phy_Addr,
+          Settings.ETH_Pin_mdc_cs,
+          Settings.ETH_Pin_mdio_irq,
+          Settings.ETH_Pin_power_rst,
+          SPI);
+#else
         EthEventData.ethInitSuccess = ETH.begin( 
           to_ESP_phy_type(Settings.ETH_Phy_Type),
           Settings.ETH_Phy_Addr,
@@ -194,6 +208,7 @@ bool ETHConnectRelaxed() {
           static_cast<int>(Settings.SPI_SCLK_pin),
           static_cast<int>(Settings.SPI_MISO_pin),
           static_cast<int>(Settings.SPI_MOSI_pin));
+#endif
       }
     } else {
 # if CONFIG_ETH_USE_ESP32_EMAC
@@ -239,6 +254,8 @@ bool ETHConnectRelaxed() {
       // We might miss the connected event, since we are already connected.
       EthEventData.markConnected();
     }
+  } else {
+    addLog(LOG_LEVEL_ERROR, F("ETH  : Failed to initialize ETH"));
   }
   return EthEventData.ethInitSuccess;
 }

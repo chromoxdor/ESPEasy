@@ -114,6 +114,10 @@
 
 # include "../Helpers/Hardware_ADC_cali.h"
 
+#if FEATURE_ETHERNET
+#include <ETH.h>
+#endif
+
 #endif // ifdef ESP32
 
 
@@ -234,7 +238,9 @@ void hardwareInit()
       isValid(Settings.ETH_Phy_Type) && 
       isSPI_EthernetType(Settings.ETH_Phy_Type)) 
   {
+#if !ETH_SPI_SUPPORTS_CUSTOM
       tryInitSPI = false;
+#endif
   }
 #endif
 
