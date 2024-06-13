@@ -1627,9 +1627,9 @@ int http_authenticate(const String& logIdentifier,
         String key = keys[i];
         String value = "";
         int startIndex = str.indexOf(key + "\":");
-        if (i == 0) { // since there are two id´s, we have to search for the second one first
-          startIndex = str.indexOf(key + "\":", startIndex + 1);
-          startIndex = str.indexOf(key + "\":", startIndex + 1);
+        if (i == 0)
+        { // since there are three id´s, we have to search for the third one first
+          startIndex = str.indexOf(key + "\":", str.indexOf(key + "\":", startIndex + 1) + 1);
         }
         if (startIndex == -1)
         {
@@ -1651,12 +1651,12 @@ int http_authenticate(const String& logIdentifier,
 
         //if (value != "-256")
         //{
-          if (csv != "")
-          {
-            csv += ",";
-          }
-          csv += value;
-       // }
+        if (!csv.isEmpty())
+        {
+          csv += ",";
+        }
+        csv += value;
+        // }
       }
       eventQueue.addMove(strformat(F("OpenweatherReply=%s"),
                                    csv.c_str()));
@@ -1665,6 +1665,7 @@ int http_authenticate(const String& logIdentifier,
 #if FEATURE_OMETEO_EVENT
       // Generate event with the response of a openweathermap request (https://open-meteo.com/en/docs)
       // Example command: sendtohttp,api.open-meteo.com,80,/v1/forecast?latitude=52.52&longitude=13.41
+      // No need for an api key and it is free (daily requests are limited to 10,000 in the free version)
       // Visit the URL and build your personal URL by selecting the location and values you want to receive.
       // More keys can be added then to the keys array below.
 
@@ -1702,14 +1703,11 @@ int http_authenticate(const String& logIdentifier,
           value.trim(); // Remove any surrounding whitespace
         }
 
-        //if (value != "-256")
-        //{
-          if (csv != "")
-          {
-            csv += ",";
-          }
-          csv += value;
-       // }
+        if (!csv.isEmpty())
+        {
+          csv += ",";
+        }
+        csv += value;
       }
       eventQueue.addMove(strformat(F("OpenMeteoReply=%s"),
                                    csv.c_str()));
