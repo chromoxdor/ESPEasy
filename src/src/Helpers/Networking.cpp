@@ -1856,7 +1856,7 @@ int http_authenticate(const String& logIdentifier,
       str.replace("]", "");
 
       String csv = "";
-      for (int i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+      for (int i = 0; i < keyCount; i++) // Use keyCount to limit the iteration
       {
         String key = keys[i];
         String value = "";
