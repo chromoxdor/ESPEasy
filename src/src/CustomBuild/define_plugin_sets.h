@@ -1496,9 +1496,9 @@ To create/register a plugin, you have to :
     #endif
     
     // Do not include large blobs but fetch them from CDN
-    #ifndef WEBSERVER_USE_CDN_JS_CSS
+    /*#ifndef WEBSERVER_USE_CDN_JS_CSS
       #define WEBSERVER_USE_CDN_JS_CSS
-    #endif
+    #endif*/
   #endif
   #define KEEP_I2C_MULTIPLEXER
 #endif
@@ -3608,5 +3608,7 @@ To create/register a plugin, you have to :
       #define FEATURE_THINGSPEAK_EVENT 1
     #endif
   #endif
+
+
 
 #endif // CUSTOMBUILD_DEFINE_PLUGIN_SETS_H
