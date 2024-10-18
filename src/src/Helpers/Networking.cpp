@@ -1741,9 +1741,10 @@ int http_authenticate(const String& logIdentifier,
                                    csv.c_str()));
     }
 #endif
+
 #if FEATURE_OMETEO_EVENT
     // Generate event with the response of a open-meteo request (https://open-meteo.com/en/docs)
-    // Example command: sendtohttp,api.open-meteo.com,80,/v1/forecast?latitude=52.52&longitude=13.41
+    // Example command: sendtohttp,api.open-meteo.com,80,/v1/forecast?latitude=52.52&longitude=13.41&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&forecast_days=1
     // No need for an api key and it is free (daily requests are limited to 10,000 in the free version)
     // Visit the URL and build your personal URL by selecting the location and values you want to receive.
     // More keys can be added then to the keys array below.
@@ -1751,108 +1752,54 @@ int http_authenticate(const String& logIdentifier,
     if (httpCode == 200 && equals(host, F("api.open-meteo.com")))
     {
       String str = http.getString();
-      String keys[] = {"temperature_2m", "temperature_2m_min", "temperature_2m_max", "relative_humidity_2m", "pressure_msl", "wind_speed_10m", "wind_direction_10m", "weather_code"};
-
-      str.replace("[", ""); // get rid of the brackets since the temp min and max vals are wrapped in them
-      str.replace("]", "");
-
-      String csv = "";
-      for (int i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
-      {
-        String key = keys[i];
-        String value = "";
-        int startIndex = str.indexOf(key + "\":");
-        startIndex = str.indexOf(key + "\":", startIndex + 1); // find always second occurence of key
-
-        if (startIndex == -1)
-        {
-          // Handle case where key is not found
-          value = "-256"; // Placeholder value
-        }
-        else
-        {
-          startIndex += key.length() + 2; // Move index past the key
-          int endIndex = str.indexOf(",", startIndex);
-          if (endIndex == -1 || endIndex > str.indexOf("}", startIndex))
-          {
-            endIndex = str.indexOf("}", startIndex); // If no comma is found or comma comes after }, take the rest of the string
-          }
-
-          value = str.substring(startIndex, endIndex);
-          value.trim(); // Remove any surrounding whitespace
-        }
-
-        if (!csv.isEmpty())
-        {
-          csv += ",";
-        }
-        csv += value;
-      }
-      eventQueue.addMove(strformat(F("OpenMeteoReply=%s"),
-                                   csv.c_str()));
-    }
-#endif
-#if FEATURE_OMETEO_EVENT2
-    // Generate event with the response of a open-meteo request (https://open-meteo.com/en/docs)
-    // Example command: sendtohttp,api.open-meteo.com,80,/v1/forecast?latitude=52.52&longitude=13.41
-    // No need for an api key and it is free (daily requests are limited to 10,000 in the free version)
-    // Visit the URL and build your personal URL by selecting the location and values you want to receive.
-    // More keys can be added then to the keys array below.
-
-    if (httpCode == 200 && equals(host, F("api.open-meteo.com")))
-    {
-      String str = http.getString();
-  // Process URL to get unique keys
+      // Process URL to get unique keys
       String keys[20]; // Assuming a maximum of 20 keys
       int keyCount = 0;
-    //getUniqueKeysFromUrl(url, keys, keyCount);
-//--------------------------------------------------------------------------------------------------
-//void getUniqueKeysFromUrl(String url, String keys[], int &keyCount) {
-  // Helper function to get parameter values from query string
-  auto getCombinedParams = [](String url, String paramName) {
-    int start = url.indexOf(paramName + "=");
-    if (start == -1) return String("");
-    start += paramName.length() + 1;
-    int end = url.indexOf('&', start);
-    return (end == -1) ? url.substring(start) : url.substring(start, end);
-  };
+    
+      auto getCombinedParams = [](String url, String paramName) {
+        int start = url.indexOf(paramName + "=");
+        if (start == -1) return String("");
+        start += paramName.length() + 1;
+        int end = url.indexOf('&', start);
+        return (end == -1) ? url.substring(start) : url.substring(start, end);
+      };
 
-  // Extract current and daily parameters
-  String currentParams = getCombinedParams(uri, "current");
-  String dailyParams = getCombinedParams(uri, "daily");
+      // Extract current and daily parameters
+      String currentParams = getCombinedParams(uri, "current");
+      String dailyParams = getCombinedParams(uri, "daily");
 
-  // Combine parameters
-  String combinedParams = currentParams + "," + dailyParams;
+      // Combine parameters
+      String combinedParams = currentParams + (currentParams.length() > 0 && dailyParams.length() > 0 ? "," : "") + dailyParams;
 
-  // Helper function to check if a key already exists in the array
-  auto keyExists = [](String keys[], int keyCount, String key) {
-    for (int i = 0; i < keyCount; i++) {
-      if (keys[i] == key) return true;
-    }
-    return false;
-  };
 
-  // Split and add keys to the array, ensuring no duplicates
-  int startIndex = 0;
-  int commaIndex = combinedParams.indexOf(',');
+      // Helper function to check if a key already exists in the array
+      auto keyExists = [](String keys[], int keyCount, String key) {
+        for (int i = 0; i < keyCount; i++) {
+          if (keys[i] == key) return true;
+        }
+        return false;
+      };
 
-  while (commaIndex != -1) {
-    String key = combinedParams.substring(startIndex, commaIndex);
-    if (!keyExists(keys, keyCount, key)) {
-      keys[keyCount++] = key;
-    }
-    startIndex = commaIndex + 1;
-    commaIndex = combinedParams.indexOf(',', startIndex);
-  }
+      // Split and add keys to the array, ensuring no duplicates
+      int startIndex = 0;
+      int commaIndex = combinedParams.indexOf(',');
 
-  // Add the last key
-  String lastKey = combinedParams.substring(startIndex);
-  if (!keyExists(keys, keyCount, lastKey)) {
-    keys[keyCount++] = lastKey;
-  }
+      while (commaIndex != -1) {
+        String key = combinedParams.substring(startIndex, commaIndex);
+        if (!keyExists(keys, keyCount, key)) {
+          keys[keyCount++] = key;
+        }
+        startIndex = commaIndex + 1;
+        commaIndex = combinedParams.indexOf(',', startIndex);
+      }
 
-//--------------------------------------------------------------------------------------------------
-      str.replace("[", ""); // get rid of the brackets since the temp min and max vals are wrapped in them
+      // Add the last key
+      String lastKey = combinedParams.substring(startIndex);
+      if (!keyExists(keys, keyCount, lastKey)) {
+        keys[keyCount++] = lastKey;
+      }
+
+      str.replace("[", ""); //get rid of the brackets since the temp min and max vals are wrapped in them
       str.replace("]", "");
 
       String csv = "";
