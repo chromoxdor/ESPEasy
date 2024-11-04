@@ -2767,7 +2767,7 @@ To create/register a plugin, you have to :
   #define FEATURE_BLYNK 0
   #if !defined(PLUGIN_SET_COLLECTION) && !defined(PLUGIN_SET_SONOFF_POW)
     #ifdef USES_P076
-      #undef USES_P076   // HLW8012   in POW r1
+      //#undef USES_P076   // HLW8012   in POW r1
     #endif
     #ifdef USES_P093
       #undef USES_P093   // Mitsubishi Heat Pump
