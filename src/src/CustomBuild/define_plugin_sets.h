@@ -2685,7 +2685,7 @@ To create/register a plugin, you have to :
       #undef USES_P042
     #endif
     #ifdef USES_P043
-      #undef USES_P043
+      //#undef USES_P043
     #endif
   #endif
 #endif
