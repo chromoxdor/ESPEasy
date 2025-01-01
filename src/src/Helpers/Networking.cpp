@@ -1743,11 +1743,13 @@ int http_authenticate(const String& logIdentifier,
 #endif
 
 #if FEATURE_OMETEO_EVENT
-    // Generate event with the response of a open-meteo request (https://open-meteo.com/en/docs)
+    // Generate an event with the response of an open-meteo request (https://open-meteo.com/en/docs)
     // Example command: sendtohttp,api.open-meteo.com,80,/v1/forecast?latitude=52.52&longitude=13.41&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&forecast_days=1
     // No need for an api key and it is free (daily requests are limited to 10,000 in the free version)
     // Visit the URL and build your personal URL by selecting the location and values you want to receive.
     // More keys can be added then to the keys array below.
+    // In rules you can grep the reply by "On OpenmeteoReply Do ..."
+    // Note: For now only "current" and "daily" are supported with a forecast length of 1 day
 
     if (httpCode == 200 && equals(host, F("api.open-meteo.com")))
     {
