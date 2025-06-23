@@ -5,17 +5,18 @@
 var commonAtoms = ["And", "Or"];
 var commonKeywords = ["If", "Else", "Elseif", "Endif"];
 var commonCommands = ["AccessInfo", "Background", "Build", "ClearAccessBlock", "ClearRTCam", "Config", "ControllerDisable",
-  "ControllerEnable", "DateTime", "Debug", "Dec", "DeepSleep", "DisablePriorityTask", "DNS", "DST", "EraseSDKWiFi", "ExecuteRules", "Gateway", "I2Cscanner", "Inc",
-  "IP", "Let", "Load", "LogEntry", "LogPortStatus", "LoopTimerSet", "LoopTimerSet_ms", "MemInfo", "MemInfoDetail", "Name", "Password", "PostToHTTP", "Publish",
-  "Reboot", "Reset", "Save", "SendTo", "SendToHTTP", "SendToUDP", "Settings", "Subnet", "Subscribe", "TaskClear", "TaskClearAll",
-  "TaskDisable", "TaskEnable", "TaskRun", "TaskValueSet", "TaskValueSetAndRun", "TimerPause", "TimerResume", "TimerSet", "TimerSet_ms", "TimeZone",
-  "UdpPort", "UdpTest", "Unit", "UseNTP", "WdConfig", "WdRead", "WiFi", "WiFiAPkey", "WiFiAllowAP", "WiFiAPMode", "WiFiConnect", "WiFiDisconnect", "WiFiKey",
-  "WiFiKey2", "WiFiScan", "WiFiSSID", "WiFiSSID2", "WiFiSTAMode", "WiFi#Disconnected",
+  "ControllerEnable", "DateTime", "Debug", "Dec", "DeepSleep", "DisablePriorityTask", "DNS", "DST", "EraseSDKWiFi", "ExecuteRules", "FactoryReset", "Gateway", "I2Cscanner", "Inc",
+  "IP", "Let", "LetStr", "Load", "LogEntry", "LogPortStatus", "LoopTimerSet", "LoopTimerSet_ms", "LoopTimerSetAndRun", "LoopTimerSetAndRun_ms", "MemInfo", "MemInfoDetail", "Name", "Password", "PostToHTTP", "Publish", "PublishR",
+  "Reboot", "Save", "SendTo", "SendToHTTP", "SendToUDP", "SendToUDPMix", "Settings", "Subnet", "Subscribe", "TaskClear", "TaskClearAll",
+  "TaskDisable", "TaskEnable", "TaskRun", "TaskValueSet", "TaskValueSetAndRun", "TaskValueSetDerived", "TaskValueSetPresentation", "TimerPause", "TimerResume", "TimerSet", "TimerSet_ms", "TimeZone",
+  "UdpPort", "UdpTest", "Unit", "UseNTP", "WdConfig", "WdRead", "WiFi", "WiFiAllowAP", "WiFiAPMode", "WiFiConnect", "WiFiDisconnect", "WiFiKey",
+  "WiFiKey2", "WiFiMode", "WiFiScan", "WiFiSSID", "WiFiSSID2", "WiFiSTAMode",
   "Event", "AsyncEvent",
-  "GPIO", "GPIOToggle", "LongPulse", "LongPulse_mS", "Monitor", "Pulse", "PWM", "Servo", "Status", "Tone", "RTTTL", "UnMonitor",];
-var commonString2 = ["Clock#Time", "Login#Failed", "MQTT#Connected", "MQTT#Disconnected", "MQTTimport#Connected", "MQTTimport#Disconnected", "Rules#Timer", "System#Boot",
-  "System#BootMode", "System#Sleep", "System#Wake", "TaskExit#", "TaskInit#", "Time#Initialized", "Time#Set", "WiFi#APmodeDisabled", "WiFi#APmodeEnabled",
-  "WiFi#ChangedAccesspoint", "WiFi#ChangedWiFichannel", "WiFi#Connected"];
+  "GPIO", "GPIOToggle", "LongPulse", "LongPulse_mS", "Monitor", "Pulse", "PWM", "Servo", "Status", "Tone", "RTTTL", "UnMonitor",
+  "Provision", "Provision,Config", "Provision,Security", "Provision,Notification", "Provision,Provision", "Provision,Rules,", "Provision,CustomCdnUrl", "Provision,Firmware,", ];
+var commonEvents = ["Clock#Time", "Login#Failed", "MQTT#Connected", "MQTT#Disconnected", "MQTTimport#Connected", "MQTTimport#Disconnected", "Rules#Timer", "System#Boot",
+  "System#BootMode", "System#Sleep", "System#Wake", "TaskExit#", "TaskInit#", "ThingspeakReply", "Time#Initialized", "Time#Set", "WiFi#APmodeDisabled", "WiFi#APmodeEnabled",
+  "WiFi#ChangedAccesspoint", "WiFi#ChangedWiFichannel", "WiFi#Connected", "WiFi#Disconnected", "ProvisionFirmware",];
 var commonPlugins = [
   //P003
   "ResetPulseCounter", "SetPulseCounterTotal", "LogPulseStatistic",
@@ -24,11 +25,15 @@ var commonPlugins = [
   //P009
   "MCPGPIO", "MCPGPIOToggle", "MCPLongPulse", "MCPLongPulse_ms", "MCPPulse", "Status,MCP", "Monitor,MCP", "MonitorRange,MCP",
   "UnMonitorRange,MCP", "UnMonitor,MCP", "MCPGPIORange", "MCPGPIOPattern", "MCPMode", "MCPModeRange",
+  //P011
+  "ExtGpio", "ExtPwm", "ExtPulse", "ExtLongPulse", "Status,EXT,",
   //P012
   "LCDCmd", "LCD",
   //P019
   "PCFGPIO", "PCFGPIOToggle", "PCFLongPulse", "PCFLongPulse_ms", "PCFPulse", "Status,PCF", "Monitor,PCF",
   "MonitorRange,PCF", "UnMonitorRange,PCF", "UnMonitor,PCF", "PCFGPIORange", "PCFGPIOpattern", "PCFMode", "PCFmodeRange",
+  //P020/P044
+  "SerialSend", "SerialSendMix", "Ser2NetClientSend", "SerialSend_test",
   //P022
   "pcapwm", "pcafrq", "mode2",
   //P023
@@ -41,6 +46,8 @@ var commonPlugins = [
   "NeoPixel", "NeoPixelAll", "NeoPixelLine", "NeoPixelHSV", "NeoPixelAllHSV", "NeoPixelLineHSV", "NeoPixelBright",
   //P048
   "MotorShieldCmd,DCMotor", "MotorShieldCmd,Stepper",
+  //P049
+  "MHZCalibrateZero", "MHZReset", "MHZABCEnable", "MHZABCDisable",
   //P052
   "Sensair_SetRelay",
   //P053
@@ -55,12 +62,16 @@ var commonPlugins = [
   "7dn", "7dst", "7dsd", "7dtext", "7ddt", "7dt", "7dtfont", "7dtbin", "7don", "7doff", "7output",
   //P076
   "HLWCalibrate", "HLWReset",
+  //P077
+  "csecalibrate", "cseclearpulses", "csereset",
   //P079
   "WemosMotorShieldCMD", "LolinMotorShieldCMD",
   //P082
   "GPS", "GPS,Sleep", "GPS,Wake", "GPS#GotFix", "GPS#LostFix", "GPS#Travelled",
   //P086
   "homieValueSet",
+  //P087
+  "SerialProxy_Write", "SerialProxy_WriteMix", "SerialProxy_Test",
   //P088
   "HeatPumpir",
   //P093
@@ -106,12 +117,28 @@ var commonPlugins = [
   "sht4x", "sht4x,startup",
   //P159
   "ld2410", "ld2410,factoryreset", "ld2410,logall",
+  //P162
+  "digipot", "digipot,reset", "digipot,shutdown", "digipot,",
+  //P165
+  "7dextra", "7dbefore", "7dgroup", "7digit", "7color", "7digitcolor", "7groupcolor",
+  //P166
+  "gp8403", "gp8403,volt,", "gp8403,mvolt,", "gp8403,range,", "gp8403,preset,", "gp8403,init,",
+  //P167
+  "sen5x", "sen5x,startclean", "sen5x,techlog,",
+  //P169
+  "as3935", "as3935,clearstats", "as3935,calibrate", "as3935,setgain,", "as3935,setnf,", "as3935,setwd,", "as3925,setsrej,",
+  //P175(P053)
+  /*"pmsx003", "pmsx003,wake", "pmsx003,sleep", "pmsx003,reset",*/
+  //P178
+  "lu9685", "lu9685,servo,", "lu9685,enable,", "lu9685,disable,", "lu9685,setrange,",
+  //P180
+  "geni2c", "geni2c,cmd,", "geni2c,exec,", "geni2c,log,",
 ];
 var pluginDispKind = [
   //P095
   "tft", "ili9341", "ili9342", "ili9481", "ili9486", "ili9488",
   //P096
-  "eink", "epaper", "il3897", "uc8151d", "ssd1680", "ws2in7", "ws1in54",
+  "epd", "eink", "epaper", "il3897", "uc8151d", "ssd1680", "ws2in7", "ws1in54",
   //P116
   /*"tft",*/ "st77xx", "st7735", "st7789", "st7796",
   //P131
@@ -122,11 +149,12 @@ var pluginDispKind = [
 var pluginDispCmd = [
   "cmd,on", "cmd,off", "cmd,clear", "cmd,backlight", "cmd,bright", "cmd,deepsleep", "cmd,seq_start", "cmd,seq_end", "cmd,inv", "cmd,rot",
   ",clear", ",rot", ",tpm", ",txt", ",txp", ",txz", ",txc", ",txs", ",txtfull", ",asciitable", ",font",
-  ",l", ",lh", ",lv", ",lm", ",lmr", ",r", ",rf", ",c", ",cf", ",rf", ",t", ",tf", ",rr", ",rrf", ",px", ",pxh", ",pxv", ",bmp", ",btn"
+  ",l", ",lh", ",lv", ",lm", ",lmr", ",r", ",rf", ",c", ",cf", ",rf", ",t", ",tf", ",rr", ",rrf", ",px", ",pxh", ",pxv", ",bmp", ",btn",
+  ",win", ",defwin", ",delwin",
 ];
 var commonTag = ["On", "Do", "Endon"];
 var commonNumber = ["toBin", "toHex", "Constrain", "XOR", "AND:", "OR:", "Ord", "bitRead", "bitSet", "bitClear", "bitWrite", "urlencode"];
-var commonMath = ["Log", "Ln", "Abs", "Exp", "Sqrt", "Sq", "Round", "Sin", "Cos", "Tan", "aSin", "aCos", "aTan", "Sin_d", "Cos_d", "Tan_d", "aSin_d", "aCos_d", "aTan_d"];
+var commonMath = ["Log", "Ln", "Abs", "Exp", "Sqrt", "Sq", "Round", "Sin", "Cos", "Tan", "aSin", "aCos", "aTan", "Sin_d", "Cos_d", "Tan_d", "aSin_d", "aCos_d", "aTan_d", "map", "mapc"];
 var commonWarning = ["delay", "Delay", "ResetFlashWriteCounter"];
 var taskSpecifics = [
   //Task settings
@@ -134,22 +162,27 @@ var taskSpecifics = [
   "settings.Controller1.Enabled", "settings.Controller2.Enabled", "settings.Controller3.Enabled",
   "settings.Controller1.Idx", "settings.Controller2.Idx", "settings.Controller3.Idx"
 ];
-//things that does not fit in any other catergory (for now)
+//things that do not fit in any other catergory (for now)
 var AnythingElse = [
   //System Variables
-  "%eventvalue%", "%eventpar%", "%eventname%", "substring", "%sysname%", "%bootcause%", "%systime%", "%systm_hm%",
+  "%eventvalue%", "%eventpar%", "%eventname%", "%sysname%", "%bootcause%", "%systime%", "%systm_hm%",
   "%systm_hm_0%", "%systm_hm_sp%", "%systime_am%", "%systime_am_0%", "%systime_am_sp%", "%systm_hm_am%", "%systm_hm_am_0%", "%systm_hm_am_sp%",
   "%lcltime%", "%sunrise%", "%s_sunrise%", "%m_sunrise%", "%sunset%", "%s_sunset%", "%m_sunset%", "%lcltime_am%",
   "%syshour%", "%syshour_0%", "%sysmin%", "%sysmin_0%", "%syssec%", "%syssec_0%", "%sysday%", "%sysday_0%", "%sysmonth%",
-  "%sysmonth_0%", "%sysyear%", "%sysyear_0%", "%sysyears%", "%sysweekday%", "%sysweekday_s%", "%unixtime%", "%uptime%", "%uptime_ms%",
-  "%rssi%", "%ip%", "%unit%", "%ssid%", "%bssid%", "%wi_ch%", "%iswifi%", "%vcc%", "%mac%", "%mac_int%", "%isntp%", "%ismqtt%",
+  "%sysmonth_0%", "%systzoffset%", "%systzoffset_s%", "%sysyear%", "%sysyear_0%", "%sysyears%", "%sysweekday%", "%sysweekday_s%", "%unixtime%", "%unixtime_lcl%", "%uptime%", "%uptime_ms%",
+  "%rssi%", "%ip%", "%unit%", "%unit_0%", "%ssid%", "%bssid%", "%wi_ch%", "%iswifi%", "%vcc%", "%mac%", "%mac_int%", "%isntp%", "%ismqtt%",
   "%dns%", "%dns1%", "%dns2%", "%flash_freq%", "%flash_size%", "%flash_chip_vendor%", "%flash_chip_model%", "%fs_free%", "%fs_size%",
-  "%cpu_id%", "%cpu_freq%", "%cpu_model%", "%cpu_rev%", "%cpu_cores%", "%board_name%",
+  "%cpu_id%", "%cpu_freq%", "%cpu_model%", "%cpu_rev%", "%cpu_cores%", "%board_name%", "%inttemp%", "%islimited_build%", "%isvar_double%",
+  //String Functions
+  "substring", "lookup", "indexOf", "indexOf_ci", "equals", "equals_ci", "strtol", "timeToMin", "timeToSec",
+  //Ethernet
+  "%ethwifimode%", "%ethconnected%", "%ethduplex%", "%ethspeed%", "%ethstate%", "%ethspeedstate%",
   //Standard Conversions
-  "%c_w_dir%", "%c_c2f%", "%c_ms2Bft%", "%c_dew_th%", "%c_alt_pres_sea%", "%c_sea_pres_alt%", "%c_cm2imp%", "%c_mm2imp%",
-  "%c_m2day%", "%c_m2dh%", "%c_m2dhm%", "%c_s2dhms%", "%c_2hex%", "%c_u2ip%",
+  "%c_w_dir%", "%c_c2f%", "%c_ms2Bft%", "%c_dew_th%", "%c_alt_pres_sea%", "%c_sea_pres_alt%", "%c_cm2imp%", "%c_isnum%", "%c_mm2imp%",
+  "%c_m2day%", "%c_m2dh%", "%c_m2dhm%", "%c_s2dhms%", "%c_ts2date%", "%c_ts2wday%", "%c_random%", "%c_2hex%", "%c_u2ip%", "%c_uname%", "%c_uage%", "%c_ubuild%", "%c_ubuildstr%",
+  "%c_uload%", "%c_utype%", "%c_utypestr%", "%c_strf%",
   //Variables
-  "var", "int"
+  "var", "int", "str", "length"
 ];
 
 //merging displayspecific commands of P095,P096,P116,P131 into commonPlugins
@@ -163,7 +196,7 @@ for (const element2 of pluginDispKind) {
   }
 }
 
-var EXTRAWORDS = commonAtoms.concat(commonPlugins, commonKeywords, commonCommands, commonString2, commonTag, commonNumber, commonMath, commonWarning, taskSpecifics, AnythingElse);
+var EXTRAWORDS = commonAtoms.concat(commonPlugins, commonKeywords, commonCommands, commonEvents, commonTag, commonNumber, commonMath, commonWarning, taskSpecifics, AnythingElse);
 
 var rEdit;
 function initCM() {
@@ -219,8 +252,8 @@ function initCM() {
     var lCcommonCommands = commonCommands.map(name => name.toLowerCase());
     commonCommands = commonCommands.concat(lCcommonCommands);
 
-    var lCcommonString2 = commonString2.map(name => name.toLowerCase());
-    commonString2 = commonString2.concat(lCcommonString2);
+    var lCcommonString2 = commonEvents.map(name => name.toLowerCase());
+    commonEvents = commonEvents.concat(lCcommonString2);
 
     var lCcommonPlugins = commonPlugins.map(name => name.toLowerCase());
     commonPlugins = commonPlugins.concat(lCcommonPlugins);
@@ -249,7 +282,7 @@ function initCM() {
     define('atom', commonAtoms);
     define('keyword', commonKeywords);
     define('builtin', commonCommands);
-    define('string-2', commonString2);
+    define('events', commonEvents);
     define('def', commonPlugins);
     define('tag', commonTag);
     define('number', commonNumber);
@@ -350,7 +383,7 @@ function initCM() {
       if (/\w/.test(ch)) {
         if (stream.match("#")) {
           stream.eatWhile(/[\w.#]/);
-          return 'string-2';
+          return 'events';
         }
       }
 

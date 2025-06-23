@@ -46,6 +46,9 @@ void setNetworkMedium(NetworkMedium_t new_medium) {
 //      ETH.end();
       if (new_medium == NetworkMedium_t::WIFI) {
         WiFiEventData.clearAll();
+#if ESP_IDF_VERSION_MAJOR >= 5
+        WiFi.STA.setDefault();
+#endif
       }
       #endif
       break;
@@ -53,6 +56,11 @@ void setNetworkMedium(NetworkMedium_t new_medium) {
       WiFiEventData.timerAPoff.setMillisFromNow(WIFI_AP_OFF_TIMER_DURATION);
       WiFiEventData.timerAPstart.clear();
       if (new_medium == NetworkMedium_t::Ethernet) {
+#if ESP_IDF_VERSION_MAJOR >= 5
+#if FEATURE_ETHERNET
+        ETH.setDefault();
+#endif
+#endif
         WifiDisconnect();
       }
       break;
@@ -61,7 +69,9 @@ void setNetworkMedium(NetworkMedium_t new_medium) {
   }
   statusLED(true);
   active_network_medium = new_medium;
+  #ifndef BUILD_MINIMAL_OTA
   addLog(LOG_LEVEL_INFO, concat(F("Set Network mode: "), toString(active_network_medium)));
+  #endif
 }
 
 
@@ -374,7 +384,7 @@ MAC_address WifiSTAmacAddress() {
 
 void CheckRunningServices() {
   // First try to get the time, since that may be used in logs
-  if (Settings.UseNTP() && node_time.timeSource > timeSource_t::NTP_time_source) {
+  if (Settings.UseNTP() && node_time.getTimeSource() > timeSource_t::NTP_time_source) {
     node_time.lastNTPSyncTime_ms = 0;
     node_time.initTime();
   }
@@ -398,7 +408,7 @@ bool EthFullDuplex()
 bool EthLinkUp()
 {
   if (EthEventData.ethInitSuccess) {
-    #ifdef ESP_IDF_VERSION_MAJOR
+    #if ESP_IDF_VERSION_MAJOR < 5
     // FIXME TD-er: See: https://github.com/espressif/arduino-esp32/issues/6105
     return EthEventData.EthConnected();
     #else

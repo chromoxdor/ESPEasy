@@ -13,45 +13,41 @@ std::map<TimingStatsElements, TimingStats> miscStats;
 unsigned long timingstats_last_reset(0);
 
 
-TimingStats::TimingStats() : _timeTotal(0.0f), _count(0), _maxVal(0), _minVal(4294967295) {}
-
-void TimingStats::add(int64_t time) {
-  _timeTotal += static_cast<float>(time);
+void TimingStats::add(int32_t duration_usec) {
+  // Max duration in usec is roughly 35 minutes.
+  // For timing stats more than enough
+  if (duration_usec < 0) return;
+  _timeTotal += static_cast<uint64_t>(duration_usec);
   ++_count;
 
-  if (time > static_cast<int64_t>(_maxVal)) { _maxVal = time; }
+  if (static_cast<uint32_t>(duration_usec) > _maxVal) { _maxVal = duration_usec; }
 
-  if (time < static_cast<int64_t>(_minVal)) { _minVal = time; }
+  if (static_cast<uint32_t>(duration_usec) < _minVal) { _minVal = duration_usec; }
 }
 
 void TimingStats::reset() {
-  _timeTotal = 0.0f;
-  _count     = 0;
-  _maxVal    = 0;
-  _minVal    = 4294967295;
+  _timeTotal = 0u;
+  _count     = 0u;
+  _maxVal    = 0u;
+  _minVal    = 4294967295u;
 }
 
 bool TimingStats::isEmpty() const {
-  return _count == 0;
+  return _count == 0u;
 }
 
 float TimingStats::getAvg() const {
   if (_count == 0) { return 0.0f; }
-  return _timeTotal / static_cast<float>(_count);
+  return static_cast<float>(_timeTotal) / static_cast<float>(_count);
 }
 
-uint32_t TimingStats::getMinMax(uint64_t& minVal, uint64_t& maxVal) const {
-  if (_count == 0) {
-    minVal = 0;
-    maxVal = 0;
-    return 0;
-  }
+uint32_t TimingStats::getMinMax(uint32_t& minVal, uint32_t& maxVal) const {
   minVal = _minVal;
   maxVal = _maxVal;
   return _count;
 }
 
-bool TimingStats::thresholdExceeded(const uint64_t& threshold) const {
+bool TimingStats::thresholdExceeded(const uint32_t& threshold) const {
   if (_count == 0) {
     return false;
   }
@@ -96,6 +92,7 @@ const __FlashStringHelper* getPluginFunctionName(int function) {
     case PLUGIN_REQUEST:               return F("REQUEST");
     case PLUGIN_PROCESS_CONTROLLER_DATA: return F("PROCESS_CONTROLLER_DATA");
     case PLUGIN_I2C_GET_ADDRESS:       return F("I2C_CHECK_DEVICE");
+    case PLUGIN_READ_ERROR_OCCURED:    return F("PLUGIN_READ_ERROR_OCCURED");
   }
   return F("Unknown");
 }
@@ -117,8 +114,8 @@ bool mustLogFunction(int function) {
     case PLUGIN_FORMAT_USERVAR:        return true;
     case PLUGIN_GET_DEVICENAME:        return true;
 //    case PLUGIN_GET_DEVICEVALUENAMES:  return false;
-//    case PLUGIN_GET_DEVICEVALUECOUNT:  return false;
-//    case PLUGIN_GET_DEVICEVTYPE:       return false;
+//    case PLUGIN_GET_DEVICEVALUECOUNT:  return true;
+//    case PLUGIN_GET_DEVICEVTYPE:       return true;
     case PLUGIN_WRITE:                 return true;
 //    case PLUGIN_WEBFORM_SHOW_CONFIG:   return false;
     case PLUGIN_SERIAL_IN:             return true;
@@ -134,6 +131,7 @@ bool mustLogFunction(int function) {
     case PLUGIN_REQUEST:               return true;
     case PLUGIN_I2C_GET_ADDRESS:       return true;
     case PLUGIN_PROCESS_CONTROLLER_DATA: return true;
+    case PLUGIN_READ_ERROR_OCCURED:    return true;
   }
   return false;
 }
@@ -141,6 +139,8 @@ bool mustLogFunction(int function) {
 const __FlashStringHelper* getCPluginCFunctionName(CPlugin::Function function) {
   switch (function) {
     case CPlugin::Function::CPLUGIN_PROTOCOL_ADD:              return F("CPLUGIN_PROTOCOL_ADD");
+    case CPlugin::Function::CPLUGIN_CONNECT_SUCCESS:           return F("CPLUGIN_CONNECT_SUCCESS");
+    case CPlugin::Function::CPLUGIN_CONNECT_FAIL:              return F("CPLUGIN_CONNECT_FAIL");
     case CPlugin::Function::CPLUGIN_PROTOCOL_TEMPLATE:         return F("CPLUGIN_PROTOCOL_TEMPLATE");
     case CPlugin::Function::CPLUGIN_PROTOCOL_SEND:             return F("CPLUGIN_PROTOCOL_SEND");
     case CPlugin::Function::CPLUGIN_PROTOCOL_RECV:             return F("CPLUGIN_PROTOCOL_RECV");
@@ -173,6 +173,8 @@ bool mustLogCFunction(CPlugin::Function function) {
 
   switch (function) {
     case CPlugin::Function::CPLUGIN_PROTOCOL_ADD:              return false;
+    case CPlugin::Function::CPLUGIN_CONNECT_SUCCESS:           return true;
+    case CPlugin::Function::CPLUGIN_CONNECT_FAIL:              return true;
     case CPlugin::Function::CPLUGIN_PROTOCOL_TEMPLATE:         return false;
     case CPlugin::Function::CPLUGIN_PROTOCOL_SEND:             return true;
     case CPlugin::Function::CPLUGIN_PROTOCOL_RECV:             return true;
@@ -247,10 +249,15 @@ const __FlashStringHelper* getMiscStatsName_F(TimingStatsElements stat) {
     case TimingStatsElements::GRAT_ARP_STATS:             return F("sendGratuitousARP()");
     case TimingStatsElements::SAVE_TO_RTC:                return F("saveToRTC()");
     case TimingStatsElements::BACKGROUND_TASKS:           return F("backgroundtasks()");
+    case TimingStatsElements::UPDATE_RTTTL:               return F("update_rtttl()");
+    case TimingStatsElements::CHECK_UDP:                  return F("checkUDP()");
+    case TimingStatsElements::C013_SEND_UDP:              return F("C013_sendUDP() SUCCESS");
+    case TimingStatsElements::C013_SEND_UDP_FAIL:         return F("C013_sendUDP() FAIL");
+    case TimingStatsElements::C013_RECEIVE_SENSOR_DATA:   return F("C013 Receive sensor data");
+    case TimingStatsElements::WEBSERVER_HANDLE_CLIENT:    return F("web_server.handleClient()");
     case TimingStatsElements::PROCESS_SYSTEM_EVENT_QUEUE: return F("process_system_event_queue()");
     case TimingStatsElements::FORMAT_USER_VAR:            return F("doFormatUserVar()");
     case TimingStatsElements::IS_NUMERICAL:               return F("isNumerical()");
-    case TimingStatsElements::GET_TASKVALUE_AS_STRING:    return F("TaskValueGetAsString()");
     case TimingStatsElements::HANDLE_SCHEDULER_IDLE:      return F("handle_schedule() idle");
     case TimingStatsElements::HANDLE_SCHEDULER_TASK:      return F("handle_schedule() task");
     case TimingStatsElements::PARSE_TEMPLATE_PADDED:      return F("parseTemplate_padded()");
@@ -310,22 +317,22 @@ String getMiscStatsName(TimingStatsElements stat) {
   return getMiscStatsName_F(static_cast<TimingStatsElements>(stat));
 }
 
-void stopTimerTask(deviceIndex_t T, int F, uint64_t statisticsTimerStart)
+void stopTimerTask(deviceIndex_t T, int F, uint32_t statisticsTimerStart)
 {
-  if (mustLogFunction(F)) { pluginStats[static_cast<int>(T.value) * 256 + (F)].add(usecPassedSince(statisticsTimerStart)); }
+  if (mustLogFunction(F)) { pluginStats[static_cast<int>(T.value) * 256 + (F)].add(usecPassedSince_fast(statisticsTimerStart)); }
 }
 
-void stopTimerController(protocolIndex_t T, CPlugin::Function F, uint64_t statisticsTimerStart)
+void stopTimerController(protocolIndex_t T, CPlugin::Function F, uint32_t statisticsTimerStart)
 {
-  if (mustLogCFunction(F)) { controllerStats[static_cast<int>(T) * 256 + static_cast<int>(F)].add(usecPassedSince(statisticsTimerStart)); }
+  if (mustLogCFunction(F)) { controllerStats[static_cast<int>(T) * 256 + static_cast<int>(F)].add(usecPassedSince_fast(statisticsTimerStart)); }
 }
 
-void stopTimer(TimingStatsElements L, uint64_t statisticsTimerStart)
+void stopTimer(TimingStatsElements L, uint32_t statisticsTimerStart)
 {
-  if (Settings.EnableTimingStats()) { miscStats[L].add(usecPassedSince(statisticsTimerStart)); }
+  if (Settings.EnableTimingStats()) { miscStats[L].add(usecPassedSince_fast(statisticsTimerStart)); }
 }
 
-void addMiscTimerStat(TimingStatsElements L, int64_t T)
+void addMiscTimerStat(TimingStatsElements L, int32_t T)
 {
   if (Settings.EnableTimingStats()) { miscStats[L].add(T); }
 }

@@ -14,6 +14,7 @@ const __FlashStringHelper* formatGpioDirection(gpio_direction direction) {
     case gpio_direction::gpio_input:         return F("&larr; ");
     case gpio_direction::gpio_output:        return F("&rarr; ");
     case gpio_direction::gpio_bidirectional: return F("&#8644; ");
+    case gpio_direction::gpio_direction_MAX: break;
   }
   return F("");
 }
@@ -38,14 +39,14 @@ String formatGpioName(const __FlashStringHelper * label, gpio_direction directio
     reserveLength += 11;
   }
   String result;
+  if (reserve_special(result, reserveLength)) {
+    result += F("GPIO ");
+    result += formatGpioDirection(direction);
+    result += label;
 
-  result.reserve(reserveLength);
-  result += F("GPIO ");
-  result += formatGpioDirection(direction);
-  result += label;
-
-  if (optional) {
-    result += F("(optional)");
+    if (optional) {
+      result += F("(optional)");
+    }
   }
   return result;
 }
@@ -100,6 +101,7 @@ String formatGpioName_RX_HW(bool optional) {
 
 #ifdef ESP32
 
+#if SOC_ADC_SUPPORTED
 String formatGpioName_ADC(int gpio_pin) {
   int adc, ch, t;
 
@@ -120,7 +122,9 @@ String formatGpioName_ADC(int gpio_pin) {
   }
   return EMPTY_STRING;
 }
+#endif
 
+#if SOC_DAC_SUPPORTED
 String formatGpioName_DAC(int gpio_pin) {
   int dac;
 
@@ -129,6 +133,7 @@ String formatGpioName_DAC(int gpio_pin) {
   }
   return EMPTY_STRING;
 }
+#endif
 
 
 #endif // ifdef ESP32
@@ -144,11 +149,13 @@ String createGPIO_label(int gpio, int pinnr, bool input, bool output, bool warni
   result  = F("GPIO-");
   result += gpio;
 
+#ifdef ESP8266
   if (pinnr >= 0) {
     result += F(" (D");
     result += pinnr;
     result += ')';
   }
+#endif
 
   if (input != output) {
     result += ' ';
@@ -162,7 +169,7 @@ String createGPIO_label(int gpio, int pinnr, bool input, bool output, bool warni
   return result;
 }
 
-const __FlashStringHelper* getConflictingUse(int gpio, PinSelectPurpose purpose)
+const __FlashStringHelper* getConflictingUse(int gpio, PinSelectPurpose purpose, bool ignorePSRAMpins)
 {
 #ifdef PIN_USB_D_MIN
   if (gpio == PIN_USB_D_MIN) { return F("USB_D-"); }
@@ -176,7 +183,7 @@ const __FlashStringHelper* getConflictingUse(int gpio, PinSelectPurpose purpose)
   }
 
 #ifdef ESP32
-  if (isPSRAMInterfacePin(gpio)) {
+  if (!ignorePSRAMpins && isPSRAMInterfacePin(gpio)) { // PSRAM pins can be shared with SPI
     return F("PSRAM");
   }
 #endif
@@ -218,19 +225,22 @@ const __FlashStringHelper* getConflictingUse(int gpio, PinSelectPurpose purpose)
   #if FEATURE_SD
   bool includeSDCard = true;
   #endif
-  #if FEATURE_DEFINE_SERIAL_CONSOLE_PORT
-  // FIXME TD-er: Must check whether this can be a conflict.
-  bool includeSerial = false;
-  #else
-  bool includeSerial = true;
-  #endif
+  bool includeSerial = Settings.UseSerial; // Only need to check if Serial Port Console is enabled
 
   #if FEATURE_ETHERNET
   bool includeEthernet = true;
   #endif // if FEATURE_ETHERNET
+  bool includeStatusLed = true;
+  bool includeResetPin = true;
 
   switch (purpose) {
     case PinSelectPurpose::I2C:
+#if FEATURE_I2C_MULTIPLE
+    case PinSelectPurpose::I2C_2:
+#if FEATURE_I2C_INTERFACE_3
+    case PinSelectPurpose::I2C_3:
+#endif
+#endif
       includeI2C = false;
       break;
     case PinSelectPurpose::SPI:
@@ -257,20 +267,66 @@ const __FlashStringHelper* getConflictingUse(int gpio, PinSelectPurpose purpose)
       includeSDCard = false;
       break;
     #endif
+    case PinSelectPurpose::Status_led:
+      includeStatusLed = false;
+      break;
+    case PinSelectPurpose::Reset_pin:
+      includeResetPin = false;
+      break;
   }
 
   if (includeI2C && Settings.isI2C_pin(gpio)) {
-    return (Settings.Pin_i2c_sda == gpio) ?  F("I2C SDA") : F("I2C SCL");
+    for (uint8_t i2cBus = 0; i2cBus < getI2CBusCount(); ++i2cBus)
+    {
+      if (Settings.getI2CSdaPin(i2cBus) == gpio) {
+        #if FEATURE_I2C_MULTIPLE
+        switch (i2cBus) {
+          case 0:  return F("I2C SDA (bus 0)");
+          case 1:  return F("I2C SDA (bus 1)");
+          #if FEATURE_I2C_INTERFACE_3
+          case 2:  return F("I2C SDA (bus 2)");
+          #endif
+        }
+        #else
+        return F("I2C SDA");
+        #endif
+      }
+      if (Settings.getI2CSclPin(i2cBus) == gpio) {
+        #if FEATURE_I2C_MULTIPLE
+        switch (i2cBus) {
+          case 0:  return F("I2C SCL (bus 0)");
+          case 1:  return F("I2C SCL (bus 1)");
+          #if FEATURE_I2C_INTERFACE_3
+          case 2:  return F("I2C SCL (bus 2)");
+          #endif
+        }
+        #else
+        return F("I2C SCL");
+        #endif
+      }
+    }
   }
 
   if (includeSPI && Settings.isSPI_pin(gpio)) {
     return F("SPI");
   }
 
+  if (includeStatusLed && (Settings.Pin_status_led == gpio) && (-1 != gpio)) {
+    return F("Wifi Status LED");
+  }
+
+  if (includeResetPin && (Settings.Pin_Reset == gpio) && (-1 != gpio)) {
+    return F("Reset Pin");
+  }
+
   if (includeSerial) {
     #if FEATURE_DEFINE_SERIAL_CONSOLE_PORT
     if (Settings.UseSerial && 
-        Settings.console_serial_port == 2)  // 2 == ESPEasySerialPort::serial0
+        (Settings.console_serial_port == 2  // 2 == ESPEasySerialPort::serial0
+         #if USES_ESPEASY_CONSOLE_FALLBACK_PORT
+         || Settings.console_serial0_fallback
+         #endif // if USES_ESPEASY_CONSOLE_FALLBACK_PORT
+        ))
     #else
     if (Settings.UseSerial) 
     #endif
@@ -287,32 +343,43 @@ const __FlashStringHelper* getConflictingUse(int gpio, PinSelectPurpose purpose)
 
 
   #if FEATURE_ETHERNET
+  if (isSPI_EthernetType(Settings.ETH_Phy_Type)) {
+    if (includeEthernet && Settings.isEthernetPinOptional(gpio)) {
+      if (Settings.ETH_Pin_mdc_cs == gpio) { return F("Eth SPI CS"); }
 
-  if (Settings.isEthernetPin(gpio)) {
-    return F("Eth");
-  }
+      if (Settings.ETH_Pin_mdio_irq == gpio) { return F("Eth SPI IRQ"); }
 
-  if (includeEthernet && Settings.isEthernetPinOptional(gpio)) {
-    if (isGpioUsedInETHClockMode(Settings.ETH_Clock_Mode, gpio)) { return F("Eth Clock"); }
+      if (Settings.ETH_Pin_power_rst == gpio) { return F("Eth SPI RST"); }
+    }
+  } else {
+    if (Settings.isEthernetPin(gpio)) {
+      return F("Eth");
+    }
 
-    if (Settings.ETH_Pin_mdc == gpio) { return F("Eth MDC"); }
+    if (includeEthernet && Settings.isEthernetPinOptional(gpio)) {
+      if (isGpioUsedInETHClockMode(Settings.ETH_Clock_Mode, gpio)) { return F("Eth Clock"); }
 
-    if (Settings.ETH_Pin_mdio == gpio) { return F("Eth MDIO"); }
+      if (Settings.ETH_Pin_mdc_cs == gpio) { return F("Eth MDC"); }
 
-    if (Settings.ETH_Pin_power == gpio) { return F("Eth Pwr"); }
+      if (Settings.ETH_Pin_mdio_irq == gpio) { return F("Eth MDIO"); }
 
-    return F("Eth");
+      if (Settings.ETH_Pin_power_rst == gpio) { return F("Eth Pwr"); }
+
+      return F("Eth");
+    }
   }
   #endif // if FEATURE_ETHERNET
 
-
+  if (isBootStrapPin(gpio)) {
+    return F("Boot Strapping");
+  }
 
   return F("");
 }
 
-String getConflictingUse_wrapped(int gpio, PinSelectPurpose purpose)
+String getConflictingUse_wrapped(int gpio, PinSelectPurpose purpose, bool ignorePSRAMpins)
 {
-  String conflict = getConflictingUse(gpio, purpose);
+  const String conflict = getConflictingUse(gpio, purpose, ignorePSRAMpins);
 
   if (conflict.isEmpty()) { return conflict; }
   String res = F(" [");

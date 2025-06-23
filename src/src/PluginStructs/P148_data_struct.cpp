@@ -88,6 +88,10 @@ uint8_t P148_data_struct::TM1621GetFontCharacter(char character, bool firstrow) 
   return 0u;
 }
 
+
+// FIXME TD-er: When used on ESP8266, this conversion union may not work
+// However this is probably only used on ESP32 Sonoff units with display.
+
 // Do not change the order of these as it is stored.
 union MonitorTaskValue_conversion {
   struct {
@@ -154,10 +158,10 @@ void P148_data_struct::MonitorTaskValue_t::webformLoad(int index) const {
         static_cast<int>(P148_data_struct::Tm1621UnitOfMeasure::kWh_Watt)
       };
       constexpr size_t nrElements = sizeof(optionValues) / sizeof(optionValues[0]);
-
-      addFormSelector(
+      const FormSelectorOptions selector(nrElements, options, optionValues);
+      selector.addFormSelector(
         F("Unit Symbols"), concat(F("punit"), index),
-        nrElements, options, optionValues, static_cast<int>(unit));
+        static_cast<int>(unit));
     } else {
       const __FlashStringHelper *options[] = {
         F("None"),
@@ -173,9 +177,10 @@ void P148_data_struct::MonitorTaskValue_t::webformLoad(int index) const {
       };
       constexpr size_t nrElements = sizeof(optionValues) / sizeof(optionValues[0]);
 
-      addFormSelector(
+      const FormSelectorOptions selector(nrElements, options, optionValues);
+      selector.addFormSelector(
         F("Unit Symbols"), concat(F("punit"), index),
-        nrElements, options, optionValues, static_cast<int>(unit));
+        static_cast<int>(unit));
     }
   } else {
     addFormCheckBox(F("Clear Line"), concat(F("pshowname"), index), showname);

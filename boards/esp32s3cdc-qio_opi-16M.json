@@ -5,7 +5,7 @@
       "memory_type": "qio_opi"
     },
     "core": "esp32",
-    "extra_flags": "-DBOARD_HAS_PSRAM -DARDUINO_USB_MODE=1 -DUSE_USB_CDC_CONSOLE -DESP32_16M -DESP32S3 -DARDUINO_USB_CDC_ON_BOOT=1",
+    "extra_flags": "-DARDUINO_TASMOTA -DBOARD_HAS_PSRAM -DARDUINO_USB_MODE=1 -DUSE_USB_CDC_CONSOLE -DESP32_16M -DESP32S3 -DARDUINO_USB_CDC_ON_BOOT=1",
     "f_cpu": "240000000L",
     "f_flash": "80000000L",
     "flash_mode": "qio",
@@ -36,7 +36,7 @@
     "espidf",
     "arduino"
   ],
-  "name": "Espressif Generic ESP32-S3 USB CDC 16M Flash OPI PSRAM, ESPEasy 4096k Code/OTA 1088k FS",
+  "name": "Espressif Generic ESP32-S3 USB CDC 16M Flash OPI PSRAM, ESPEasy 4096k Code/OTA 8124k FS",
   "upload": {
     "flash_size": "16MB",
     "maximum_ram_size": 327680,

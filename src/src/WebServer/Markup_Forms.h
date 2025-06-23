@@ -3,6 +3,7 @@
 
 #include "../WebServer/common.h"
 
+#include "../DataTypes/FormSelectorOptions.h"
 #include "../DataStructs/MAC_address.h"
 #include "../Globals/Plugins.h"
 #include "../Helpers/StringGenerator_GPIO.h"
@@ -18,6 +19,7 @@ void addFormSeparator(int clspan);
 // ********************************************************************************
 void addFormNote(const __FlashStringHelper * text);
 void addFormNote(const String& text, const String& id = EMPTY_STRING);
+void addFormNote(const LabelType::Enum& label);
 
 // ********************************************************************************
 // Create Forms
@@ -277,108 +279,19 @@ void addFormPinSelect(PinSelectPurpose purpose, const __FlashStringHelper * labe
 
 void addFormPinSelectI2C(const String& label,
                          const String& id,
+                         uint8_t       i2cBus,
                          int           choice);
 
 void addFormSelectorI2C(const String& id,
                         int           addressCount,
                         const uint8_t addresses[],
-                        int           selectedIndex
+                        int           selectedIndex,
+                        uint8_t       defaultAddress = 0 // Address 0 is invalid
                         #if FEATURE_TOOLTIPS
                         ,
                         const String& tooltip = EMPTY_STRING
                         #endif
                         );
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const String  options[],
-                     const int     indices[],
-                     int           selectedIndex
-                     #if FEATURE_TOOLTIPS
-                     ,
-                     const String& tooltip = EMPTY_STRING
-                     #endif
-                     );
-
-void addFormSelector(const __FlashStringHelper * label, const __FlashStringHelper * id, int optionCount, const __FlashStringHelper * options[], const int indices[], int selectedIndex, bool reloadonchange = false);
-void addFormSelector(const __FlashStringHelper * label, const String& id, int optionCount, const __FlashStringHelper * options[], const int indices[], int selectedIndex, bool reloadonchange = false);
-void addFormSelector(const String& label, const String& id, int optionCount, const __FlashStringHelper * options[], const int indices[], int selectedIndex);
-void addFormSelector(const __FlashStringHelper * label, const __FlashStringHelper * id, int optionCount, const String options[], const int indices[], int selectedIndex);
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const __FlashStringHelper * options[],
-                     const int     indices[],
-                     int           selectedIndex,
-                     bool          reloadonchange);
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const __FlashStringHelper * options[],
-                     const int     indices[],
-                     const String  attr[],
-                     int           selectedIndex,
-                     bool       reloadonchange);
-
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const String  options[],
-                     const int     indices[],
-                     int           selectedIndex,
-                     bool          reloadonchange
-                     #if FEATURE_TOOLTIPS
-                     ,
-                     const String& tooltip = EMPTY_STRING
-                     #endif
-                     );
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const String  options[],
-                     const int     indices[],
-                     const String  attr[],
-                     int           selectedIndex,
-                     bool       reloadonchange
-                     #if FEATURE_TOOLTIPS
-                     ,
-                     const String& tooltip = EMPTY_STRING
-                     #endif
-                     );
-
-void addFormSelector_script(const __FlashStringHelper * label,
-                            const __FlashStringHelper * id,
-                            int           optionCount,
-                            const __FlashStringHelper * options[],
-                            const int     indices[],
-                            const String  attr[],
-                            int           selectedIndex,
-                            const __FlashStringHelper * onChangeCall
-                            #if FEATURE_TOOLTIPS
-                            ,
-                            const String& tooltip = EMPTY_STRING
-                            #endif
-                            );
-
-
-void addFormSelector_script(const __FlashStringHelper * label,
-                            const __FlashStringHelper * id,
-                            int           optionCount,
-                            const String  options[],
-                            const int     indices[],
-                            const String  attr[],
-                            int           selectedIndex,
-                            const __FlashStringHelper * onChangeCall
-                            #if FEATURE_TOOLTIPS
-                            ,
-                            const String& tooltip = EMPTY_STRING
-                            #endif
-                            );
 
 void addFormSelector_YesNo(const __FlashStringHelper * label,
                            const __FlashStringHelper * id,
@@ -412,6 +325,12 @@ bool update_whenset_FormItemInt(const __FlashStringHelper * key,
 
 bool update_whenset_FormItemInt(const String& key,
                                 int         & value);
+
+bool update_whenset_FormItemInt(const __FlashStringHelper * key,
+                                int8_t      & value);
+
+bool update_whenset_FormItemInt(const String& key,
+                                int8_t      & value);
 
 bool update_whenset_FormItemInt(const __FlashStringHelper * key,
                                 uint8_t     & value);

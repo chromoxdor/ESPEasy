@@ -26,6 +26,9 @@
 #if FEATURE_NOTIFIER
 # include "../Commands/Notifications.h"
 #endif // if FEATURE_NOTIFIER
+#if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
+#include "../Commands/OneWire.h"
+#endif // if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
 #include "../Commands/Provisioning.h"
 #include "../Commands/RTC.h"
 #include "../Commands/Rules.h"
@@ -61,7 +64,7 @@ bool checkNrArguments(const char *cmd, const String& Line, int nrArguments) {
     if (loglevelActiveFor(LOG_LEVEL_ERROR)) {
       String log;
 
-      if (log.reserve(128)) {
+      if (reserve_special(log, 128)) {
         log += F("Too many arguments: cmd=");
         log += cmd;
 
@@ -170,7 +173,7 @@ bool do_command_case_check(command_case_data         & data,
   // The data struct is re-used on each attempt to process an internal command.
   // Re-initialize the only two members that may have been altered by a previous call.
   data.retval = false;
-  data.status = String();
+  free_string(data.status);
 
   if (!checkSourceFlags(data.event->Source, group)) {
     data.status = return_incorrect_source();
@@ -302,6 +305,7 @@ bool InternalCommands::executeInternalCommand()
     case ESPEasy_cmd_e::erasesdkwifi:               COMMAND_CASE_R(Command_WiFi_Erase,     0);               // WiFi.h
     case ESPEasy_cmd_e::event:                      COMMAND_CASE_A(Command_Rules_Events,  -1);               // Rule.h
     case ESPEasy_cmd_e::executerules:               COMMAND_CASE_A(Command_Rules_Execute, -1);               // Rule.h
+    case ESPEasy_cmd_e::factoryreset:               COMMAND_CASE_R(Command_Settings_FactoryReset, 0);        // Settings.h
     case ESPEasy_cmd_e::gateway:                    COMMAND_CASE_R(Command_Gateway,     1);                  // Network Command
     case ESPEasy_cmd_e::gpio:                       COMMAND_CASE_A(Command_GPIO,        2);                  // Gpio.h
     case ESPEasy_cmd_e::gpiotoggle:                 COMMAND_CASE_A(Command_GPIO_Toggle, 1);                  // Gpio.h
@@ -315,13 +319,18 @@ bool InternalCommands::executeInternalCommand()
 #ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
     case ESPEasy_cmd_e::jsonportstatus:             COMMAND_CASE_A(Command_JSONPortStatus, -1);              // Diagnostic.h
 #endif // ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
-    case ESPEasy_cmd_e::let:                        COMMAND_CASE_A(Command_Rules_Let,         2);            // Rules.h
-    case ESPEasy_cmd_e::load:                       COMMAND_CASE_A(Command_Settings_Load,     0);            // Settings.h
-    case ESPEasy_cmd_e::logentry:                   COMMAND_CASE_A(Command_logentry,         -1);            // Diagnostic.h
-    case ESPEasy_cmd_e::looptimerset:               COMMAND_CASE_A(Command_Loop_Timer_Set,    3);            // Timers.h
-    case ESPEasy_cmd_e::looptimerset_ms:            COMMAND_CASE_A(Command_Loop_Timer_Set_ms, 3);            // Timers.h
-    case ESPEasy_cmd_e::longpulse:                  COMMAND_CASE_A(Command_GPIO_LongPulse,    5);            // GPIO.h
-    case ESPEasy_cmd_e::longpulse_ms:               COMMAND_CASE_A(Command_GPIO_LongPulse_Ms, 5);            // GPIO.h
+    case ESPEasy_cmd_e::let:                        COMMAND_CASE_A(Command_Rules_Let,               2);      // Rules.h
+    #if FEATURE_STRING_VARIABLES
+    case ESPEasy_cmd_e::letstr:                     COMMAND_CASE_A(Command_Rules_LetStr,            2);      // Rules.h
+    #endif // if FEATURE_STRING_VARIABLES
+    case ESPEasy_cmd_e::load:                       COMMAND_CASE_A(Command_Settings_Load,           0);      // Settings.h
+    case ESPEasy_cmd_e::logentry:                   COMMAND_CASE_A(Command_logentry,               -1);      // Diagnostic.h
+    case ESPEasy_cmd_e::looptimerset:               COMMAND_CASE_A(Command_Loop_Timer_Set,          3);      // Timers.h
+    case ESPEasy_cmd_e::looptimerset_ms:            COMMAND_CASE_A(Command_Loop_Timer_Set_ms,       3);      // Timers.h
+    case ESPEasy_cmd_e::looptimersetandrun:         COMMAND_CASE_A(Command_Loop_Timer_SetAndRun,    3);      // Timers.h
+    case ESPEasy_cmd_e::looptimersetandrun_ms:      COMMAND_CASE_A(Command_Loop_Timer_SetAndRun_ms, 3);      // Timers.h
+    case ESPEasy_cmd_e::longpulse:                  COMMAND_CASE_A(Command_GPIO_LongPulse,          5);      // GPIO.h
+    case ESPEasy_cmd_e::longpulse_ms:               COMMAND_CASE_A(Command_GPIO_LongPulse_Ms,       5);      // GPIO.h
 #ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
     case ESPEasy_cmd_e::logportstatus:              COMMAND_CASE_A(Command_logPortStatus,     0);            // Diagnostic.h
     case ESPEasy_cmd_e::lowmem:                     COMMAND_CASE_A(Command_Lowmem,            0);            // Diagnostic.h
@@ -347,9 +356,12 @@ bool InternalCommands::executeInternalCommand()
     case ESPEasy_cmd_e::name:                       COMMAND_CASE_R(Command_Settings_Name,        1);         // Settings.h
     case ESPEasy_cmd_e::nosleep:                    COMMAND_CASE_R(Command_System_NoSleep,       1);         // System.h
 #if FEATURE_NOTIFIER
-    case ESPEasy_cmd_e::notify:                     COMMAND_CASE_R(Command_Notifications_Notify, 2);         // Notifications.h
+    case ESPEasy_cmd_e::notify:                     COMMAND_CASE_R(Command_Notifications_Notify, -1);        // Notifications.h
 #endif // if FEATURE_NOTIFIER
     case ESPEasy_cmd_e::ntphost:                    COMMAND_CASE_R(Command_NTPHost,              1);         // Time.h
+#if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
+    case ESPEasy_cmd_e::owscan:                     COMMAND_CASE_R(Command_OneWire_Owscan,       -1);         // OneWire.h
+#endif // if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
 #ifdef USES_P019
     case ESPEasy_cmd_e::pcfgpio:                    COMMAND_CASE_A(Command_GPIO,                 2);         // Gpio.h
     case ESPEasy_cmd_e::pcfgpiorange:               COMMAND_CASE_A(Command_GPIO_PcfGPIORange,   -1);         // Gpio.h
@@ -383,13 +395,13 @@ bool InternalCommands::executeInternalCommand()
     case ESPEasy_cmd_e::pulse:                      COMMAND_CASE_A(Command_GPIO_Pulse,        3);                 // GPIO.h
 #if FEATURE_MQTT
     case ESPEasy_cmd_e::publish:                    COMMAND_CASE_A(Command_MQTT_Publish,     -1);                 // MQTT.h
+    case ESPEasy_cmd_e::publishr:                   COMMAND_CASE_A(Command_MQTT_PublishR,    -1);                 // MQTT.h
 #endif // if FEATURE_MQTT
 #if FEATURE_PUT_TO_HTTP
     case ESPEasy_cmd_e::puttohttp:                  COMMAND_CASE_A(Command_HTTP_PutToHTTP,  -1);                  // HTTP.h
 #endif // if FEATURE_PUT_TO_HTTP
     case ESPEasy_cmd_e::pwm:                        COMMAND_CASE_A(Command_GPIO_PWM,          4);                 // GPIO.h
     case ESPEasy_cmd_e::reboot:                     COMMAND_CASE_A(Command_System_Reboot,              0);        // System.h
-    case ESPEasy_cmd_e::reset:                      COMMAND_CASE_R(Command_Settings_Reset,             0);        // Settings.h
     case ESPEasy_cmd_e::resetflashwritecounter:     COMMAND_CASE_A(Command_RTC_resetFlashWriteCounter, 0);        // RTC.h
     case ESPEasy_cmd_e::restart:                    COMMAND_CASE_A(Command_System_Reboot,              0);        // System.h
     case ESPEasy_cmd_e::rtttl:                      COMMAND_CASE_A(Command_GPIO_RTTTL,                -1);        // GPIO.h
@@ -411,6 +423,7 @@ bool InternalCommands::executeInternalCommand()
     case ESPEasy_cmd_e::sendtohttp:                 COMMAND_CASE_A(Command_HTTP_SendToHTTP, 3);      // HTTP.h
 #endif // FEATURE_SEND_TO_HTTP
     case ESPEasy_cmd_e::sendtoudp:                  COMMAND_CASE_A(Command_UDP_SendToUPD,   3);      // UDP.h
+    case ESPEasy_cmd_e::sendtoudpmix:               COMMAND_CASE_A(Command_UDP_SendToUPDMix, 3);     // UDP.h
 #ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
     case ESPEasy_cmd_e::serialfloat:                COMMAND_CASE_R(Command_SerialFloat,    0);       // Diagnostic.h
 #endif // ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
@@ -434,6 +447,10 @@ bool InternalCommands::executeInternalCommand()
     case ESPEasy_cmd_e::taskrun:                    COMMAND_CASE_A(Command_Task_Run,            1);  // Tasks.h
     case ESPEasy_cmd_e::taskrunat:                  COMMAND_CASE_A(Command_Task_Run,            2);  // Tasks.h
     case ESPEasy_cmd_e::taskvalueset:               COMMAND_CASE_A(Command_Task_ValueSet,       3);  // Tasks.h
+    #if FEATURE_STRING_VARIABLES
+    case ESPEasy_cmd_e::taskvaluesetderived:        COMMAND_CASE_A(Command_Task_ValueSetDerived,      4); // Tasks.h
+    case ESPEasy_cmd_e::taskvaluesetpresentation:   COMMAND_CASE_A(Command_Task_ValueSetPresentation, 3); // Tasks.h
+    #endif // if FEATURE_STRING_VARIABLES
     case ESPEasy_cmd_e::taskvaluetoggle:            COMMAND_CASE_A(Command_Task_ValueToggle,    2);  // Tasks.h
     case ESPEasy_cmd_e::taskvaluesetandrun:         COMMAND_CASE_A(Command_Task_ValueSetAndRun, 3);  // Tasks.h
     case ESPEasy_cmd_e::timerpause:                 COMMAND_CASE_A(Command_Timer_Pause,  1);         // Timers.h

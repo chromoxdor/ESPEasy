@@ -52,7 +52,9 @@ void handle_config() {
     Settings.Unit = getFormItemInt(F("unit"), Settings.Unit);
 
     if (strcmp(Settings.Name, name.c_str()) != 0) {
+      #ifndef BUILD_MINIMAL_OTA
       addLog(LOG_LEVEL_INFO, F("Unit Name changed."));
+      #endif
 
       if (CPluginCall(CPlugin::Function::CPLUGIN_GOT_INVALID, 0)) { // inform controllers that the old name will be invalid from now on.
 #if FEATURE_MQTT
@@ -82,6 +84,10 @@ void handle_config() {
     // Hidden SSID
     Settings.IncludeHiddenSSID(isFormItemChecked(LabelType::CONNECT_HIDDEN_SSID));
     Settings.HiddenSSID_SlowConnectPerBSSID(isFormItemChecked(LabelType::HIDDEN_SSID_SLOW_CONNECT));
+
+#ifdef ESP32
+    Settings.PassiveWiFiScan(isFormItemChecked(LabelType::WIFI_PASSIVE_SCAN));
+#endif
 
     // Access point password.
     copyFormPassword(F("apkey"), SecuritySettings.WifiAPKey, sizeof(SecuritySettings.WifiAPKey));
@@ -175,10 +181,12 @@ void handle_config() {
   addFormNote(F("WPA Key must be at least 8 characters long"));
 
   addFormCheckBox(LabelType::CONNECT_HIDDEN_SSID,      Settings.IncludeHiddenSSID());
-  addFormNote(F("Must be checked to connect to a hidden SSID"));
+
+#ifdef ESP32
+  addFormCheckBox(LabelType::WIFI_PASSIVE_SCAN, Settings.PassiveWiFiScan());
+#endif
   
   addFormCheckBox(LabelType::HIDDEN_SSID_SLOW_CONNECT,      Settings.HiddenSSID_SlowConnectPerBSSID());
-  addFormNote(F("Required for some AP brands like Mikrotik to connect to hidden SSID"));
 
   addFormSeparator(2);
   addFormPasswordBox(F("WPA AP Mode Key"), F("apkey"), SecuritySettings.WifiAPKey, 63);

@@ -18,6 +18,7 @@ Welcome to ESP Easy's documentation!
    Hardware/Hardware.rst
    Plugin/_Plugin.rst
    Rules/Rules.rst
+   Notify/_Notifications.rst
    Tools/Tools.rst
    WiFi/WiFi.rst
 
@@ -51,7 +52,9 @@ Welcome to ESP Easy's documentation!
    :hidden:
 
    Controller/C*
+   Notify/N*
    Plugin/P*
+   Rules/HTTPResponseParser.rst
 
 
 Indices and tables

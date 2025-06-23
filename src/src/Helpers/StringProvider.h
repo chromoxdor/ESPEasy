@@ -87,6 +87,12 @@ struct LabelType {
 #if FEATURE_RULES_EASY_COLOR_CODE
     DISABLE_RULES_AUTOCOMPLETE,
 #endif // if FEATURE_RULES_EASY_COLOR_CODE
+#if FEATURE_TARSTREAM_SUPPORT
+    DISABLE_SAVE_CONFIG_AS_TAR,
+#endif // if FEATURE_TARSTREAM_SUPPORT
+    #if FEATURE_TASKVALUE_UNIT_OF_MEASURE
+    SHOW_UOM_ON_DEVICES_PAGE,
+    #endif // if FEATURE_TASKVALUE_UNIT_OF_MEASURE
 
     BOOT_TYPE,               // Cold boot
     BOOT_COUNT,              // 0
@@ -138,14 +144,25 @@ struct LabelType {
     FORCE_WIFI_NOSLEEP,
     PERIODICAL_GRAT_ARP,
     CONNECTION_FAIL_THRESH,
+#ifndef ESP32
     WAIT_WIFI_CONNECT,
+#endif
     HIDDEN_SSID_SLOW_CONNECT,
     CONNECT_HIDDEN_SSID,
+#ifdef ESP32
+    WIFI_PASSIVE_SCAN,
+#endif
     SDK_WIFI_AUTORECONNECT,
+#if FEATURE_USE_IPV6
+    ENABLE_IPV6,
+#endif
 
     BUILD_DESC,
     GIT_BUILD,
     SYSTEM_LIBRARIES,
+#ifdef ESP32
+    ESP_IDF_SDK_VERSION,
+#endif
     PLUGIN_COUNT,
     PLUGIN_DESCRIPTION,
     BUILD_TIME,
@@ -212,6 +229,7 @@ struct LabelType {
     ETH_STATE,
     ETH_SPEED_STATE,
     ETH_CONNECTED,
+    ETH_CHIP,
 #endif // if FEATURE_ETHERNET
 # if FEATURE_ETHERNET || defined(USES_ESPEASY_NOW)
     ETH_WIFI_MODE,
@@ -245,6 +263,9 @@ String getInternalLabel(LabelType::Enum label,
 const __FlashStringHelper * getLabel(LabelType::Enum label);
 String getValue(LabelType::Enum label);
 String getExtendedValue(LabelType::Enum label);
+
+String getFormNote(LabelType::Enum label);
+String getFormUnit(LabelType::Enum label);
 
 
 #endif // STRING_PROVIDER_TYPES_H

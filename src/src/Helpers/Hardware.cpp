@@ -66,23 +66,7 @@
     #  include <bootloader_common.h>
   # endif // if ESP_IDF_VERSION_MAJOR == 4
 
-
-# if CONFIG_IDF_TARGET_ESP32S3   // ESP32-S3
-  #  define HAS_HALL_EFFECT_SENSOR  0
-  #  define HAS_TOUCH_GPIO 1
-# elif CONFIG_IDF_TARGET_ESP32S2 // ESP32-S2
-  #  define HAS_HALL_EFFECT_SENSOR  0
-  #  define HAS_TOUCH_GPIO 1
-# elif CONFIG_IDF_TARGET_ESP32C6 // ESP32-C6
-  #  define HAS_HALL_EFFECT_SENSOR  0
-  #  define HAS_TOUCH_GPIO  0
-# elif CONFIG_IDF_TARGET_ESP32C3 // ESP32-C3
-  #  define HAS_HALL_EFFECT_SENSOR  0
-  #  define HAS_TOUCH_GPIO  0
-# elif CONFIG_IDF_TARGET_ESP32C2 // ESP32-C2
-  #  define HAS_HALL_EFFECT_SENSOR  0
-  #  define HAS_TOUCH_GPIO  0
-# elif CONFIG_IDF_TARGET_ESP32   // ESP32/PICO-D4
+#if CONFIG_IDF_TARGET_ESP32   // ESP32/PICO-D4
   #  if ESP_IDF_VERSION_MAJOR < 5
   #   define HAS_HALL_EFFECT_SENSOR  1
   #  else // if ESP_IDF_VERSION_MAJOR < 5
@@ -90,15 +74,9 @@
 // Support for Hall Effect sensor was removed in ESP_IDF 5.x
   #   define HAS_HALL_EFFECT_SENSOR  0
   #  endif // if ESP_IDF_VERSION_MAJOR < 5
-  #  define HAS_TOUCH_GPIO 1
-# else // if CONFIG_IDF_TARGET_ESP32S3
-  #  error Target CONFIG_IDF_TARGET is not supported
-# endif // if CONFIG_IDF_TARGET_ESP32S3
-
-
-# ifndef HAS_TOUCH_GPIO
-#  define HAS_TOUCH_GPIO 0
-# endif // ifndef HAS_TOUCH_GPIO
+# else 
+  #  define HAS_HALL_EFFECT_SENSOR  0
+# endif
 
 
 # if ESP_IDF_VERSION_MAJOR >= 5
@@ -113,6 +91,10 @@
 # endif // if ESP_IDF_VERSION_MAJOR >= 5
 
 # include "../Helpers/Hardware_ADC_cali.h"
+
+#if FEATURE_ETHERNET
+#include <ETH.h>
+#endif
 
 #endif // ifdef ESP32
 
@@ -148,16 +130,16 @@ void hardwareInit()
         PinBootState bootState = Settings.getPinBootState(gpio);
       #if FEATURE_ETHERNET
 /*
-        if (Settings.ETH_Pin_power == gpio)
+        if (Settings.ETH_Pin_power_rst == gpio)
         {
-          if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-            String log = F("ETH  : Reset ETH module on pin ");
-            log += Settings.ETH_Pin_power;
-            addLog(LOG_LEVEL_INFO, log);
-          }
-          bootState = PinBootState::Output_low;
-        }
-*/
+                  if (loglevelActiveFor(LOG_LEVEL_INFO)) {
+                    String log = F("ETH  : Reset ETH module on pin ");
+                    log += Settings.ETH_Pin_power_rst;
+                    addLog(LOG_LEVEL_INFO, log);
+                  }
+                  bootState = PinBootState::Output_low;
+                }
+         */
       #endif // if FEATURE_ETHERNET
 
         #ifdef ESP32
@@ -228,8 +210,22 @@ void hardwareInit()
   PluginCall(PLUGIN_PRIORITY_INIT_ALL, nullptr, dummy);
   #endif // if FEATURE_PLUGIN_PRIORITY
 
+  bool tryInitSPI = true;
+#if FEATURE_ETHERNET
+  if ((Settings.NetworkMedium == NetworkMedium_t::Ethernet) &&
+      isValid(Settings.ETH_Phy_Type) && 
+      isSPI_EthernetType(Settings.ETH_Phy_Type)) 
+  {
+#if !ETH_SPI_SUPPORTS_CUSTOM
+      tryInitSPI = false;
+#endif
+  }
+#endif
+
+
   // SPI Init
-  if (Settings.isSPI_valid())
+  bool SPI_initialized = false;
+  if (tryInitSPI && Settings.isSPI_valid())
   {
     SPI.setHwCs(false);
 
@@ -237,55 +233,43 @@ void hardwareInit()
     #ifdef ESP32
 
     const SPI_Options_e SPI_selection = static_cast<SPI_Options_e>(Settings.InitSPI);
+    int8_t spi_gpios[3]               = {};
 
-    switch (SPI_selection) {
-#ifdef ESP32_CLASSIC
-      case SPI_Options_e::Hspi:
-      {
-        SPI.begin(HSPI_SCLK, HSPI_MISO, HSPI_MOSI); // HSPI
-        break;
-      }
-#endif
-      case SPI_Options_e::UserDefined:
-      {
-        SPI.begin(Settings.SPI_SCLK_pin,
-                  Settings.SPI_MISO_pin,
-                  Settings.SPI_MOSI_pin); // User-defined SPI
-        break;
-      }
-      case SPI_Options_e::Vspi_Fspi:
-      {
+    if (Settings.getSPI_pins(spi_gpios)) {
+      if (SPI_selection == SPI_Options_e::Vspi_Fspi) {
         SPI.begin(); // Default SPI bus
-        break;
+      } else {
+        SPI.begin(spi_gpios[0], spi_gpios[1], spi_gpios[2]);
       }
-      case SPI_Options_e::None:
-        break;
+      SPI_initialized = true;
     }
     #else // ifdef ESP32
     SPI.begin();
+    SPI_initialized = true;
     #endif // ifdef ESP32
-    addLog(LOG_LEVEL_INFO, F("INIT : SPI Init (without CS)"));
   }
-  else
+
+  if (SPI_initialized)
   {
+    addLog(LOG_LEVEL_INFO, F("INIT : SPI Init (without CS)"));
+    #if FEATURE_SD
+
+    if (Settings.Pin_sd_cs >= 0)
+    {
+      if (SD.begin(Settings.Pin_sd_cs))
+      {
+        addLog(LOG_LEVEL_INFO, F("SD   : Init OK"));
+      }
+      else
+      {
+        SD.end();
+        addLog(LOG_LEVEL_ERROR, F("SD   : Init failed"));
+      }
+    }
+#endif // if FEATURE_SD
+  } else {
     addLog(LOG_LEVEL_INFO, F("INIT : SPI not enabled"));
   }
-
-#if FEATURE_SD
-
-  if (Settings.Pin_sd_cs >= 0)
-  {
-    if (SD.begin(Settings.Pin_sd_cs))
-    {
-      addLog(LOG_LEVEL_INFO, F("SD   : Init OK"));
-    }
-    else
-    {
-      SD.end();
-      addLog(LOG_LEVEL_ERROR, F("SD   : Init failed"));
-    }
-  }
-#endif // if FEATURE_SD
 }
 
 
@@ -330,21 +314,6 @@ int espeasy_analogRead(int pin) {
 
 #endif // ifdef ESP8266
 
-float mapADCtoFloat(float float_value,
-                    float adc1,
-                    float adc2,
-                    float out1,
-                    float out2)
-{
-  if (!approximatelyEqual(adc1, adc2))
-  {
-    const float normalized = (float_value - adc1) / (adc2 - adc1);
-    float_value = normalized * (out2 - out1) + out1;
-  }
-  return float_value;
-}
-
-
 #ifdef ESP32
 
 // ESP32 ADC calibration datatypes.
@@ -352,9 +321,9 @@ float mapADCtoFloat(float float_value,
 
 // FIXME TD-er: For now keep a local array of the adc calibration 
 #if ESP_IDF_VERSION_MAJOR < 5
-Hardware_ADC_cali_t ESP32_ADC_cali[ADC_ATTEN_MAX];
+Hardware_ADC_cali_t ESP32_ADC_cali[ADC_ATTEN_MAX]{};
 #else
-Hardware_ADC_cali_t ESP32_ADC_cali[ADC_ATTENDB_MAX];
+Hardware_ADC_cali_t ESP32_ADC_cali[ADC_ATTENDB_MAX]{};
 #endif
 
 
@@ -453,9 +422,9 @@ int espeasy_analogRead(int pin, bool readAsTouch) {
 
     if (canread) {
       if (readAsTouch && (t >= 0)) {
-        # if HAS_TOUCH_GPIO
+        #if defined(SOC_TOUCH_SENSOR_SUPPORTED) && SOC_TOUCH_SENSOR_SUPPORTED
         value = touchRead(pin);
-        # endif // if HAS_TOUCH_GPIO
+        # endif 
       } else {
         value = analogRead(pin);
       }
@@ -556,6 +525,20 @@ long HwRandom(long howsmall, long howbig) {
     long diff = howbig - howsmall;
     return HwRandom(diff) + howsmall;
 }
+
+ESPEASY_RULES_FLOAT_TYPE HwRandom_f(
+  ESPEASY_RULES_FLOAT_TYPE howsmall,
+  ESPEASY_RULES_FLOAT_TYPE howbig)
+{
+  if (approximatelyEqual(howsmall, howbig)) {
+    return howsmall;
+  }
+  return mapADCtoFloat(
+    HwRandom(),
+    0, std::numeric_limits<uint32_t>::max(),
+    howsmall, howbig);
+}
+
 
 #ifdef ESP8266
 void readBootCause() {
@@ -759,6 +742,7 @@ const __FlashStringHelper* getDeviceModelBrandString(DeviceModel model) {
     case DeviceModel::DeviceModel_Sonoff_POWr2:   return F("Sonoff");
     case DeviceModel::DeviceModel_Shelly1:
     case DeviceModel::DeviceModel_ShellyPLUG_S:   return F("Shelly");
+# if CONFIG_ETH_USE_ESP32_EMAC
     case DeviceModel::DeviceModel_Olimex_ESP32_PoE:
     case DeviceModel::DeviceModel_Olimex_ESP32_EVB:
     case DeviceModel::DeviceModel_Olimex_ESP32_GATEWAY:
@@ -773,6 +757,7 @@ const __FlashStringHelper* getDeviceModelBrandString(DeviceModel model) {
     #ifdef ESP32_CLASSIC
       return F("WT32-ETH01");
     #endif // ifdef ESP32_CLASSIC
+#endif
     case DeviceModel::DeviceModel_default:
     case DeviceModel::DeviceModel_MAX:      break;
 
@@ -810,19 +795,13 @@ const __FlashStringHelper* getDeviceModelTypeString(DeviceModel model)
     case DeviceModel::DeviceModel_ShellyPLUG_S:
       return F("default");
 #endif // if defined(ESP8266) && !defined(LIMIT_BUILD_SIZE)
-#ifdef ESP32_CLASSIC
+#if CONFIG_ETH_USE_ESP32_EMAC
     case DeviceModel::DeviceModel_Olimex_ESP32_PoE:      return F(" ESP32-PoE");
     case DeviceModel::DeviceModel_Olimex_ESP32_EVB:      return F(" ESP32-EVB");
     case DeviceModel::DeviceModel_Olimex_ESP32_GATEWAY:  return F(" ESP32-GATEWAY");
     case DeviceModel::DeviceModel_wESP32:                break;
     case DeviceModel::DeviceModel_WT32_ETH01:            return F(" add-on");
-#else // ifdef ESP32_CLASSIC
-    case DeviceModel::DeviceModel_Olimex_ESP32_PoE:
-    case DeviceModel::DeviceModel_Olimex_ESP32_EVB:
-    case DeviceModel::DeviceModel_Olimex_ESP32_GATEWAY:
-    case DeviceModel::DeviceModel_wESP32:
-    case DeviceModel::DeviceModel_WT32_ETH01:
-#endif // ifdef ESP32_CLASSIC
+#endif // if CONFIG_ETH_USE_ESP32_EMAC
 
     case DeviceModel::DeviceModel_default:
     case DeviceModel::DeviceModel_MAX:             return F("default");
@@ -834,7 +813,7 @@ const __FlashStringHelper* getDeviceModelTypeString(DeviceModel model)
 
 String getDeviceModelString(DeviceModel model) {
   return concat(
-    getDeviceModelBrandString(model), 
+    getDeviceModelBrandString(model),
     getDeviceModelTypeString(model));
 }
 
@@ -874,18 +853,19 @@ bool modelMatchingFlashSize(DeviceModel model) {
       return false;
 #endif // ifdef ESP8266
 
-    // These Olimex boards all have Ethernet
+      // These Olimex boards all have Ethernet
+#if CONFIG_ETH_USE_ESP32_EMAC
     case DeviceModel::DeviceModel_Olimex_ESP32_PoE:
     case DeviceModel::DeviceModel_Olimex_ESP32_EVB:
     case DeviceModel::DeviceModel_Olimex_ESP32_GATEWAY:
     case DeviceModel::DeviceModel_wESP32:
     case DeviceModel::DeviceModel_WT32_ETH01:
-#if  defined(ESP32_CLASSIC) && FEATURE_ETHERNET
+# if  defined(ESP32_CLASSIC) && FEATURE_ETHERNET
       return size_MB == 4;
-#else // if  defined(ESP32_CLASSIC) && FEATURE_ETHERNET
+# else // if  defined(ESP32_CLASSIC) && FEATURE_ETHERNET
       return false;
-#endif // if  defined(ESP32_CLASSIC) && FEATURE_ETHERNET
-
+# endif // if  defined(ESP32_CLASSIC) && FEATURE_ETHERNET
+#endif // if CONFIG_ETH_USE_ESP32_EMAC
     case DeviceModel::DeviceModel_default:
     case DeviceModel::DeviceModel_MAX:
       return true;
@@ -915,7 +895,7 @@ void addSwitchPlugin(taskIndex_t taskIndex, int gpio, const String& name, bool a
   Settings.TaskDevicePin1PullUp[taskIndex] = true;
 
   if (activeLow) {
-    Settings.TaskDevicePluginConfig[taskIndex][2] = 1; // PLUGIN_001_BUTTON_TYPE_PUSH_ACTIVE_LOW;
+    Settings.TaskDevicePluginConfig[taskIndex][2] = 1; // SWITCH_TYPE_PUSH_ACTIVE_LOW;
   }
   Settings.TaskDevicePluginConfig[taskIndex][3] = 1;   // "Send Boot state" checked.
 }
@@ -966,7 +946,6 @@ void addPredefinedRules(const GpioFactorySettingsStruct& gpio_settings) {
   }
 }
 
-
 // ********************************************************************************
 // change of device: cleanup old device and reset default settings
 // ********************************************************************************
@@ -980,7 +959,8 @@ void setTaskDevice_to_TaskIndex(pluginID_t taskdevicenumber, taskIndex_t taskInd
   ClearCustomTaskSettings(taskIndex);
 
   Settings.TaskDeviceNumber[taskIndex] = taskdevicenumber.value;
-//  Settings.getPluginID_for_task(taskIndex) = taskdevicenumber;
+
+  //  Settings.getPluginID_for_task(taskIndex) = taskdevicenumber;
 
   if (validPluginID_fullcheck(taskdevicenumber)) // set default values if a new device has been selected
   {

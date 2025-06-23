@@ -1,3 +1,16 @@
+.. |P140_name| replace:: :cyan:`CardKB I2C Keyboard`
+.. |P140_type| replace:: :cyan:`Keypad`
+.. |P140_typename| replace:: :cyan:`Keypad - CardKB I2C Keyboard`
+.. |P140_porttype| replace:: `.`
+.. |P140_status| replace:: :yellow:`ESP32`
+.. |P140_github| replace:: P140_CardKB.ino
+.. _P140_github: https://github.com/letscontrolit/ESPEasy/blob/mega/src/_P140_CardKB.ino
+.. |P140_usedby| replace:: `.`
+.. |P140_shortinfo| replace:: `M5Stack CardKB I2C Keyboard`
+.. |P140_maintainer| replace:: `tonhuisman`
+.. |P140_compileinfo| replace:: `.`
+.. |P140_usedlibraries| replace:: `.`
+
 .. |P141_name| replace:: :cyan:`PCD8544 Nokia 5110 LCD`
 .. |P141_type| replace:: :cyan:`Display`
 .. |P141_typename| replace:: :cyan:`Display - PCD8544 Nokia 5110 LCD`
@@ -10,6 +23,19 @@
 .. |P141_maintainer| replace:: `tonhuisman`
 .. |P141_compileinfo| replace:: `.`
 .. |P141_usedlibraries| replace:: `https://github.com/adafruit/Adafruit-PCD8544-Nokia-5110-LCD-library`
+
+.. |P142_name| replace:: :cyan:`AS5600(L) Magnetic angle`
+.. |P142_type| replace:: :cyan:`Position`
+.. |P142_typename| replace:: :cyan:`Position - AS5600(L) Magnetic angle`
+.. |P142_porttype| replace:: `.`
+.. |P142_status| replace:: :yellow:`COLLECTION G` :yellow:`CLIMATE`
+.. |P142_github| replace:: P142_AS5600.ino
+.. _P142_github: https://github.com/letscontrolit/ESPEasy/blob/mega/src/_P142_AS5600.ino
+.. |P142_usedby| replace:: `.`
+.. |P142_shortinfo| replace:: `AS5600 Magnetic angle and rotation sensor`
+.. |P142_maintainer| replace:: `tonhuisman`
+.. |P142_compileinfo| replace:: `.`
+.. |P142_usedlibraries| replace:: `https://github.com/RobTillaart/AS5600`
 
 .. |P143_name| replace:: :cyan:`I2C Rotary encoders`
 .. |P143_type| replace:: :cyan:`Switch input`
@@ -28,7 +54,7 @@
 .. |P144_type| replace:: :cyan:`Dust`
 .. |P144_typename| replace:: :cyan:`Dust - PM1006(K) (Vindriktning)`
 .. |P144_porttype| replace:: `.`
-.. |P144_status| replace:: :yellow:`COLLECTION E`
+.. |P144_status| replace:: :yellow:`COLLECTION E` :yellow:`CLIMATE`
 .. |P144_github| replace:: P144_Vindriktning.ino
 .. _P144_github: https://github.com/letscontrolit/ESPEasy/blob/mega/src/_P144_Vindrikning.ino
 .. |P144_usedby| replace:: `.`

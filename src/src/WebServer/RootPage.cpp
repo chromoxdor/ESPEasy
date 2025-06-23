@@ -107,23 +107,29 @@ void handle_root() {
   // disconnect here could result into a crash/reboot...
   if (strcasecmp_P(sCommand.c_str(), PSTR("wifidisconnect")) == 0)
   {
+    #ifndef BUILD_MINIMAL_OTA
     addLog(LOG_LEVEL_INFO, F("WIFI : Disconnecting..."));
+    #endif
     cmd_within_mainloop = CMD_WIFI_DISCONNECT;
     addHtml(F("OK"));
   } else if (strcasecmp_P(sCommand.c_str(), PSTR("reboot")) == 0)
   {
+    #ifndef BUILD_MINIMAL_OTA
     addLog(LOG_LEVEL_INFO, F("     : Rebooting..."));
+    #endif
     cmd_within_mainloop = CMD_REBOOT;
     addHtml(F("OK"));
   } else if (strcasecmp_P(sCommand.c_str(), PSTR("reset")) == 0)
   {
     if (loggedIn) {
+      #ifndef BUILD_MINIMAL_OTA
       addLog(LOG_LEVEL_INFO, F("     : factory reset..."));
+      #endif
       cmd_within_mainloop = CMD_REBOOT;
       addHtml(F(
                 "OK. Please wait > 1 min and connect to Access point.<BR><BR>PW=configesp<BR>URL=<a href='http://192.168.4.1'>192.168.4.1</a>"));
       TXBuffer.endStream();
-      ExecuteCommand_internal(EventValueSource::Enum::VALUE_SOURCE_HTTP, sCommand.c_str());
+      ExecuteCommand_internal({EventValueSource::Enum::VALUE_SOURCE_HTTP, sCommand.c_str()}, true);
       return;
     }
   } else {
@@ -158,14 +164,19 @@ void handle_root() {
 
     if (wdcounter > 0)
     {
-      addHtmlFloat(getCPUload());
-      addHtml(F("% (LC="));
-      addHtmlInt(getLoopCountPerSec());
-      addHtml(')');
+      addHtml(strformat(
+        F("%.2f [%%] (LC=%d)"),
+        getCPUload(),
+        getLoopCountPerSec()));
     }
+
+#if FEATURE_INTERNAL_TEMPERATURE
+    addRowLabelValue(LabelType::INTERNAL_TEMPERATURE);
+#endif
     {
       addRowLabel(LabelType::FREE_MEM);
       addHtmlInt(freeMem);
+      addUnit(getFormUnit(LabelType::FREE_MEM));
 # ifndef BUILD_NO_RAM_TRACKER
       addHtml(strformat(
         F(" (%d - %s)"),
@@ -174,13 +185,14 @@ void handle_root() {
 # endif // ifndef BUILD_NO_RAM_TRACKER
     }
     {
-        # ifdef USE_SECOND_HEAP
+# ifdef USE_SECOND_HEAP
       addRowLabelValue(LabelType::FREE_HEAP_IRAM);
-      # endif // ifdef USE_SECOND_HEAP
+# endif // ifdef USE_SECOND_HEAP
     }
     {
       addRowLabel(LabelType::FREE_STACK);
       addHtmlInt(getCurrentFreeStack());
+      addUnit(getFormUnit(LabelType::FREE_STACK));
 # ifndef BUILD_NO_RAM_TRACKER
       addHtml(strformat(
         F(" (%d - %s)"),
@@ -197,12 +209,14 @@ void handle_root() {
     {
       addRowLabelValue(LabelType::IP_ADDRESS);
 #if FEATURE_USE_IPV6
-      addRowLabelValue(LabelType::IP6_LOCAL);
-      // Do not show global IPv6 on the root page
+      if (Settings.EnableIPv6()) {
+        addRowLabelValue(LabelType::IP6_LOCAL);
+        // Do not show global IPv6 on the root page
+      }
 #endif
       addRowLabel(LabelType::WIFI_RSSI);
       addHtml(strformat(
-        F("%d dBm (%s)"),
+        F("%d [dBm] (%s)"),
         WiFi.RSSI(),
         WiFi.SSID().c_str()));
     }
@@ -213,8 +227,10 @@ void handle_root() {
       addRowLabelValue(LabelType::ETH_SPEED_STATE);
       addRowLabelValue(LabelType::ETH_IP_ADDRESS);
 #if FEATURE_USE_IPV6
-      addRowLabelValue(LabelType::ETH_IP6_LOCAL);
-      // Do not show global IPv6 on the root page
+      if (Settings.EnableIPv6()) {
+        addRowLabelValue(LabelType::ETH_IP6_LOCAL);
+        // Do not show global IPv6 on the root page
+      }
 #endif
     }
   # endif // if FEATURE_ETHERNET
@@ -264,7 +280,7 @@ void handle_root() {
         addHtml(F("<TR><TD colspan='2'>Command Output<BR><textarea readonly rows='10' wrap='on'>"));
         addHtml(printWebString);
         addHtml(F("</textarea>"));
-        printWebString = String();
+        free_string(printWebString);
       }
     }
     html_end_table();
@@ -337,8 +353,10 @@ void handle_root() {
 
         if (it->second.ip[0] != 0
 #if FEATURE_USE_IPV6
-            || it->second.hasIPv6_mac_based_link_local
-            || it->second.hasIPv6_mac_based_link_global
+            || (Settings.EnableIPv6() &&
+                (it->second.hasIPv6_mac_based_link_local || 
+                 it->second.hasIPv6_mac_based_link_global)
+               )
 #endif
         )
         {
@@ -347,12 +365,14 @@ void handle_root() {
 
 #if FEATURE_USE_IPV6
           bool isIPv6 = false;
-          if (it->second.hasIPv6_mac_based_link_local) {
-            ip = it->second.IPv6_link_local(true);
-            isIPv6 = true;
-          } else if (it->second.hasIPv6_mac_based_link_global) {
-            ip = it->second.IPv6_global();
-            isIPv6 = true;
+          if (Settings.EnableIPv6()) {
+            if (it->second.hasIPv6_mac_based_link_local) {
+              ip = it->second.IPv6_link_local(true);
+              isIPv6 = true;
+            } else if (it->second.hasIPv6_mac_based_link_global) {
+              ip = it->second.IPv6_global();
+              isIPv6 = true;
+            }
           }
           if (it->second.hasIPv4 && it->second.hasIPv6()) {
             // Add 2 buttons for IPv4 and IPv6 address
@@ -446,7 +466,7 @@ void handle_root() {
   # endif // if FEATURE_ESPEASY_P2P
     html_end_form();
 
-    printWebString = String();
+    free_string(printWebString);
     printToWeb     = false;
     sendHeadandTail_stdtemplate(_TAIL);
   }

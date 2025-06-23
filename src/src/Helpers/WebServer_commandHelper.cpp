@@ -23,7 +23,7 @@ HandledWebCommand_result handle_command_from_web(EventValueSource::Enum source, 
 
   bool handledCmd = false;
   bool sendOK     = false;
-  printWebString = String();
+  free_string(printWebString);
   printToWeb     = false;
   printToWebJSON = false;
 
@@ -35,7 +35,7 @@ HandledWebCommand_result handle_command_from_web(EventValueSource::Enum source, 
   if (command_e == ESPEasy_cmd_e::NotMatched) {
     // For sure not an internal command, try plugin or remote config
     printToWeb = true;
-    handledCmd = ExecuteCommand_plugin_config(source, webrequest.c_str());
+    handledCmd = ExecuteCommand_plugin_config({source, webrequest.c_str()});
     sendOK     = false;
   } else {
     if ((command_e == ESPEasy_cmd_e::event) || (command_e == ESPEasy_cmd_e::asyncevent))
@@ -52,6 +52,9 @@ HandledWebCommand_result handle_command_from_web(EventValueSource::Enum source, 
         case ESPEasy_cmd_e::taskvaluesetandrun:
         case ESPEasy_cmd_e::taskvaluetoggle:
         case ESPEasy_cmd_e::let:
+        #if FEATURE_STRING_VARIABLES
+        case ESPEasy_cmd_e::letstr:
+        #endif // if FEATURE_STRING_VARIABLES
 #ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
         case ESPEasy_cmd_e::logportstatus:
 #endif
@@ -80,7 +83,7 @@ HandledWebCommand_result handle_command_from_web(EventValueSource::Enum source, 
     } 
     if (!handledCmd) {
       printToWeb = true;
-      handledCmd = ExecuteCommand_internal(source, webrequest.c_str());
+      handledCmd = ExecuteCommand_internal({source, webrequest.c_str()});
     }
   }
 

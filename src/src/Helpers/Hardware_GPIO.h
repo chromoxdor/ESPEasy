@@ -4,6 +4,9 @@
 
 #include "../../ESPEasy_common.h"
 
+#ifdef ESP32
+#include "soc/soc_caps.h"
+#endif
 
 // ********************************************************************************
 // Get info of a specific GPIO pin.
@@ -14,6 +17,8 @@ bool getGpioInfo(int   gpio,
                  bool& input,
                  bool& output,
                  bool& warning);
+
+bool isBootStrapPin(int gpio);
 
 bool getGpioPullResistor(int   gpio,
                          bool& hasPullUp,
@@ -35,9 +40,14 @@ bool getADC_gpio_info(int  gpio_pin,
                       int& adc,
                       int& ch,
                       int& t);
+#if SOC_TOUCH_SENSOR_SUPPORTED
 int  touchPinToGpio(int touch_pin);
+#endif
+
+#if SOC_DAC_SUPPORTED
 bool getDAC_gpio_info(int  gpio_pin,
                       int& dac);
+#endif
 
 #endif // ifdef ESP32
 

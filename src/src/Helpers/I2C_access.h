@@ -42,6 +42,18 @@ bool I2C_write8_reg(uint8_t i2caddr,
                     uint8_t value);
 
 // **************************************************************************/
+// Writes an 16 bit value over I2C
+// **************************************************************************/
+bool I2C_write16(uint8_t  i2caddr,
+                 uint16_t value);
+
+// **************************************************************************/
+// Writes an 16 bit LE value over I2C
+// **************************************************************************/
+bool I2C_write16_LE(uint8_t  i2caddr,
+                    uint16_t value);
+
+// **************************************************************************/
 // Writes an 16 bit value over I2C to a register
 // **************************************************************************/
 bool I2C_write16_reg(uint8_t  i2caddr,
@@ -136,5 +148,12 @@ bool I2C_deviceCheck(uint8_t     i2caddr,
                      uint8_t     maxRetries = 0,
                      uint8_t     function   = 0);
 #endif // if FEATURE_I2C_DEVICE_CHECK
+
+#if FEATURE_I2C_MULTIPLE
+void I2CInterfaceSelector(String  label,
+                          String  id,
+                          uint8_t choice,
+                          bool    reloadWhenNeeded);
+#endif // if FEATURE_I2C_MULTIPLE
 
 #endif // HELPERS_I2C_ACCESS_H

@@ -149,10 +149,22 @@ void EspEasy_Console_t::reInit()
     HeapSelectDram ephemeral;
     # endif // ifdef USE_SECOND_HEAP
 
+    unsigned int buffsize = 128;
+
+    const ESPEasySerialPort mainSerialPort = static_cast<ESPEasySerialPort>(_console_serial_port);
+
+#if USES_HWCDC
+    if (mainSerialPort == ESPEasySerialPort::usb_hw_cdc) {
+      buffsize = 2048;
+    }
+#endif // if USES_HWCDC
+
     _mainSerial._serial = new (std::nothrow) ESPeasySerial(
-      static_cast<ESPEasySerialPort>(_console_serial_port),
+      mainSerialPort,
       _console_serial_rxpin,
-      _console_serial_txpin);
+      _console_serial_txpin, 
+      false,
+      buffsize);
     somethingChanged = true;
   }
 # if USES_ESPEASY_CONSOLE_FALLBACK_PORT
@@ -196,7 +208,9 @@ void EspEasy_Console_t::begin(uint32_t baudrate)
 #else // if FEATURE_DEFINE_SERIAL_CONSOLE_PORT
 # ifdef ESP8266
     _mainSerial._serial->begin(baudrate);
+    #ifndef BUILD_MINIMAL_OTA
     addLog(LOG_LEVEL_INFO, F("ESPEasy console using HW Serial"));
+    #endif
 # endif // ifdef ESP8266
 # ifdef ESP32
 

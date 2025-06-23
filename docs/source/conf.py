@@ -21,7 +21,7 @@ import sphinx_bootstrap_theme
 # -- Project information -----------------------------------------------------
 
 project = u'ESP Easy'
-copyright = u'2018-2024, ESP Easy'
+copyright = u'2018-2025, ESP Easy'
 author = u'Grovkillen, TD-er & Friends'
 
 # The short X.Y version
@@ -45,7 +45,8 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.imgmath',
     'sphinx.ext.imgconverter',
-    'recommonmark'
+    'recommonmark',
+    'sphinx_toolbox.collapse',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -180,6 +181,9 @@ html_theme_options = {
     # Choose Bootstrap version.
     # Values: "3" (default) or "2" (in quotes)
     'bootstrap_version': "5",
+
+    # Disable showing the sidebar. Defaults to 'false'
+    'nosidebar': True,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

@@ -153,15 +153,18 @@ void serialHelper_addI2CuartSelectors(int address, int channel) {
     if ((channel != SC16IS752_CHANNEL_A) && (channel != SC16IS752_CHANNEL_B)) {
       channel = SC16IS752_CHANNEL_A;
     }
-    const __FlashStringHelper *chOptions[SC16IS752_CHANNELS] = {
+    const __FlashStringHelper *chOptions[] = {
       F("A"),
       F("B"),
     };
-    const int chValues[SC16IS752_CHANNELS] = {
+    /*
+    const int chValues[] = {
       SC16IS752_CHANNEL_A,
       SC16IS752_CHANNEL_B,
     };
-    addFormSelector(F("Channel"), F("i2cuart_ch"), SC16IS752_CHANNELS, chOptions, chValues, channel);
+    */
+    const FormSelectorOptions selector(NR_ELEMENTS(chOptions), chOptions);
+    selector.addFormSelector(F("Channel"), F("i2cuart_ch"), channel);
   }
 }
 
@@ -212,13 +215,13 @@ void serialHelper_webformLoad(ESPEasySerialPort port, int rxPinDef, int txPinDef
 //"	  document.querySelector('#taskdevicepin1').value =" STRINGIFY(SOC_RX0) ";"
 //"	  document.querySelector('#taskdevicepin2').value =" STRINGIFY(SOC_TX0) ";"
 "   style = '';"
-# if SOC_UART_NUM > 1
+# if USABLE_SOC_UART_NUM > 1
 "	} else if (elem.value == 4) {"
 //"	  document.querySelector('#taskdevicepin1').value =" STRINGIFY(SOC_RX1) ";"
 //"	  document.querySelector('#taskdevicepin2').value =" STRINGIFY(SOC_TX1) ";"
 "   style = '';"
 #endif
-# if SOC_UART_NUM > 2
+# if USABLE_SOC_UART_NUM > 2
 "	} else if (elem.value == 5) {"
 //"	  document.querySelector('#taskdevicepin1').value =" STRINGIFY(SOC_RX2) ";"
 //"	  document.querySelector('#taskdevicepin2').value =" STRINGIFY(SOC_TX2) ";"
@@ -247,12 +250,12 @@ void serialHelper_webformLoad(ESPEasySerialPort port, int rxPinDef, int txPinDef
 #ifdef ESP8266
     ,static_cast<int>(ESPEasySerialPort::serial0_swap)
 #endif // ifdef ESP8266
-#if SOC_UART_NUM > 1
+#if USABLE_SOC_UART_NUM > 1
     ,static_cast<int>(ESPEasySerialPort::serial1)
 #endif
-#if SOC_UART_NUM > 2
+#if USABLE_SOC_UART_NUM > 2
     ,static_cast<int>(ESPEasySerialPort::serial2)
-#endif // if SOC_UART_NUM > 2
+#endif // if USABLE_SOC_UART_NUM > 2
 #if USES_SW_SERIAL
     ,static_cast<int>(ESPEasySerialPort::software)
 #endif // if USES_SW_SERIAL
@@ -301,10 +304,13 @@ void serialHelper_webformLoad(ESPEasySerialPort port, int rxPinDef, int txPinDef
 #endif
     options[i] = option;
   }
-  addFormSelector_script(F("Serial Port"), F("serPort"), NR_ESPEASY_SERIAL_TYPES,
-                         options, ids, nullptr,
-                         static_cast<int>(ESPeasySerialType::getSerialType(port, rxPinDef, txPinDef)),
-                         F("serialPortChanged(this)")); // Script to toggle GPIO visibility when changing selection.
+  FormSelectorOptions selector(NR_ESPEASY_SERIAL_TYPES, options, ids);
+
+  // Script to toggle GPIO visibility when changing selection.
+  selector.onChangeCall = F("serialPortChanged(this)"); 
+  selector.addFormSelector(
+    F("Serial Port"), F("serPort"),
+    static_cast<int>(ESPeasySerialType::getSerialType(port, rxPinDef, txPinDef)));
 #if USES_I2C_SC16IS752
   serialHelper_addI2CuartSelectors(rxPinDef, txPinDef);
 #endif // ifndef DISABLE_SC16IS752_Serial

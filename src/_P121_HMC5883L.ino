@@ -22,9 +22,6 @@
  */
 
 # include "src/PluginStructs/P121_data_struct.h"
-# include <Adafruit_Sensor.h>
-# include <Adafruit_HMC5883_U.h>
-# include <math.h>
 
 # define PLUGIN_121
 # define PLUGIN_ID_121          121
@@ -42,19 +39,16 @@ boolean Plugin_121(uint8_t function, struct EventStruct *event, String& string)
   {
     case PLUGIN_DEVICE_ADD:
     {
-      Device[++deviceCount].Number           = PLUGIN_ID_121;
-      Device[deviceCount].Type               = DEVICE_TYPE_I2C;
-      Device[deviceCount].VType              = Sensor_VType::SENSOR_TYPE_QUAD;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false;
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = true;
-      Device[deviceCount].ValueCount         = 4;
-      Device[deviceCount].SendDataOption     = true;
-      Device[deviceCount].TimerOption        = true;
-      Device[deviceCount].GlobalSyncOption   = true;
-      Device[deviceCount].PluginStats        = true;
-      success                                = true;
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_121;
+      dev.Type           = DEVICE_TYPE_I2C;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_QUAD;
+      dev.FormulaOption  = true;
+      dev.ValueCount     = 4;
+      dev.SendDataOption = true;
+      dev.TimerOption    = true;
+      dev.PluginStats    = true;
+      success            = true;
       break;
     }
 
@@ -99,7 +93,8 @@ boolean Plugin_121(uint8_t function, struct EventStruct *event, String& string)
     case PLUGIN_WEBFORM_LOAD:
     {
       addFormFloatNumberBox(F("Declination Angle"), F("pdecl"), PCONFIG_FLOAT(0), -180.0f, 180.0f, 2, 0.01f);
-      PCONFIG_FLOAT(1) = PCONFIG_FLOAT(0) * M_PI / 180.0f; // convert from degree to radian
+      # define M_PI_180 0.01745329251994329577f       // M_PI / 180.0f
+      PCONFIG_FLOAT(1) = PCONFIG_FLOAT(0) * M_PI_180; // M_PI / 180.0f; // convert from degree to radian
       addUnit(F("degree"));
       success = true;
       break;
@@ -137,23 +132,22 @@ boolean Plugin_121(uint8_t function, struct EventStruct *event, String& string)
         UserVar.setFloat(event->TaskIndex, 1, s_event.magnetic.y);
         UserVar.setFloat(event->TaskIndex, 2, s_event.magnetic.z);
 
-        float heading = atan2(s_event.magnetic.y, s_event.magnetic.x);
+        double heading = atan2(s_event.magnetic.y, s_event.magnetic.x);
 
-        const float decl = PCONFIG_FLOAT(1);
+        const double decl = PCONFIG_FLOAT(1);
 
-        if (decl != 0) {
+        if (!essentiallyZero(decl)) {
           heading += decl;
         }
 
-        if (heading < 0) {
-          heading += 2.0f * PI;
+        if (definitelyLessThan(heading, 0)) {
+          heading += TWO_PI;
+        } else
+        if (definitelyGreaterThan(heading, TWO_PI)) {
+          heading -= TWO_PI;
         }
 
-        if (heading > 2.0f * PI) {
-          heading -= 2.0f * PI;
-        }
-
-        UserVar.setFloat(event->TaskIndex, 3, heading * 180.0f / M_PI);
+        UserVar.setFloat(event->TaskIndex, 3, heading * M_PI_180);
 
         success = true; // Assume we want to send out values to controllers
       }

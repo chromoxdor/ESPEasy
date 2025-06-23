@@ -2,6 +2,7 @@
 
 
 #include "../../ESPEasy-Globals.h"
+#include "../Commands/ExecuteCommand.h"
 #include "../DataStructs/TimingStats.h"
 #include "../ESPEasyCore/ESPEasyNetwork.h"
 #include "../ESPEasyCore/ESPEasyWifi_ProcessEvent.h"
@@ -29,17 +30,17 @@ void updateLoopStats() {
   ++loopCounter_full;
 
   if (lastLoopStart == 0) {
-    lastLoopStart = getMicros64();
+    lastLoopStart = micros();
     return;
   }
-  const int64_t usecSince = usecPassedSince(lastLoopStart);
+  const int32_t usecSince = usecPassedSince_fast(lastLoopStart);
 
   #if FEATURE_TIMING_STATS
   ADD_TIMER_STAT(LOOP_STATS, usecSince);
   #endif // if FEATURE_TIMING_STATS
 
   loop_usec_duration_total += usecSince;
-  lastLoopStart             = getMicros64();
+  lastLoopStart             = micros();
 
   if ((usecSince <= 0) || (usecSince > 10000000)) {
     return; // No loop should take > 10 sec.
@@ -76,7 +77,9 @@ void ESPEasy_loop()
   bool firstLoopConnectionsEstablished = NetworkConnected() && firstLoop;
 
   if (firstLoopConnectionsEstablished) {
+    #ifndef BUILD_MINIMAL_OTA
     addLog(LOG_LEVEL_INFO, F("firstLoopConnectionsEstablished"));
+    #endif
     firstLoop               = false;
     timerAwakeFromDeepSleep = millis(); // Allow to run for "awake" number of seconds, now we have wifi.
 
@@ -162,11 +165,13 @@ void ESPEasy_loop()
   else
   {
     if (!UseRTOSMultitasking) {
-      // On ESP32 the schedule is executed on the 2nd core.
+      // On ESP32, when using RTOS multitasking, the schedule is executed in a separate RTOS task
       Scheduler.handle_schedule();
     }
   }
 
+  // Calls above may have received/generated commands for the command queue, thus need to process them.
+  processExecuteCommandQueue();
   backgroundtasks();
 
   if (readyForSleep()) {

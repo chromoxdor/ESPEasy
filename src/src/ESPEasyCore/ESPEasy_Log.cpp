@@ -17,6 +17,8 @@
 #include "../Helpers/ESPEasy_Storage.h"
 #endif
 
+#define UPDATE_LOGLEVEL_ACTIVE_CACHE_INTERVAL 5000
+
 /********************************************************************************************\
   Init critical variables for logging (important during initial factory reset stuff )
   \*********************************************************************************************/
@@ -115,6 +117,22 @@ void updateLogLevelCache() {
 }
 
 bool loglevelActiveFor(uint8_t logLevel) {
+  #ifdef ESP32
+  if (xPortInIsrContext()) {
+    // When called from an ISR, you should not send out logs.
+    // Allocating memory from within an ISR is a big no-no.
+    // Also long-time blocking like sending logs (especially to a syslog server) 
+    // is also really not a good idea from an ISR call.
+    return false;
+  }
+  #endif
+  static uint32_t lastUpdateLogLevelCache = 0;
+  if (lastUpdateLogLevelCache == 0 || 
+      timePassedSince(lastUpdateLogLevelCache) > UPDATE_LOGLEVEL_ACTIVE_CACHE_INTERVAL)
+  {
+    lastUpdateLogLevelCache = millis();
+    updateLogLevelCache();
+  }
   return logLevel <= highest_active_log_level;
 }
 
@@ -134,18 +152,26 @@ uint8_t getSerialLogLevel() {
 }
 
 uint8_t getWebLogLevel() {
-  uint8_t logLevelSettings = 0;
   if (Logging.logActiveRead()) {
-    logLevelSettings = Settings.WebLogLevel;
-  } else {
-    if (Settings.WebLogLevel != 0) {
-      updateLogLevelCache();
-    }
+    return Settings.WebLogLevel;
+  } 
+  if (Settings.WebLogLevel != LOG_LEVEL_NONE) {
+    updateLogLevelCache();
   }
-  return logLevelSettings;
+  return LOG_LEVEL_NONE;
 }
 
 bool loglevelActiveFor(uint8_t destination, uint8_t logLevel) {
+  #ifdef ESP32
+  if (xPortInIsrContext()) {
+    // When called from an ISR, you should not send out logs.
+    // Allocating memory from within an ISR is a big no-no.
+    // Also long-time blocking like sending logs (especially to a syslog server) 
+    // is also really not a good idea from an ISR call.
+    return false;
+  }
+  #endif
+
   uint8_t logLevelSettings = 0;
   switch (destination) {
     case LOG_TO_SERIAL: {
@@ -226,7 +252,7 @@ void addLog(uint8_t logLevel, const char *line)
       }
     }
     #else 
-    if (!copy.reserve(strlen_P((PGM_P)line))) {
+    if (!reserve_special(copy, strlen_P((PGM_P)line))) {
       return;
     }
     copy = line;
@@ -293,6 +319,16 @@ void addToSDLog(uint8_t logLevel, const String& string)
 
 void addLog(uint8_t logLevel, const String& string)
 {
+  #ifdef ESP32
+  if (xPortInIsrContext()) {
+    // When called from an ISR, you should not send out logs.
+    // Allocating memory from within an ISR is a big no-no.
+    // Also long-time blocking like sending logs (especially to a syslog server) 
+    // is also really not a good idea from an ISR call.
+    return;
+  }
+  #endif
+
   if (string.isEmpty()) return;
   addToSerialLog(logLevel, string);
   addToSysLog(logLevel, string);
@@ -304,15 +340,25 @@ void addLog(uint8_t logLevel, const String& string)
 
 void addToLogMove(uint8_t logLevel, String&& string)
 {
+  #ifdef ESP32
+  if (xPortInIsrContext()) {
+    // When called from an ISR, you should not send out logs.
+    // Allocating memory from within an ISR is a big no-no.
+    // Also long-time blocking like sending logs (especially to a syslog server) 
+    // is also really not a good idea from an ISR call.
+    return;
+  }
+  #endif
+
   if (string.isEmpty()) return;
-  addToSerialLog(logLevel, string);
-  addToSysLog(logLevel, string);
-  addToSDLog(logLevel, string);
+  String tmp;
+  move_special(tmp, std::move(string));
+  addToSerialLog(logLevel, tmp);
+  addToSysLog(logLevel, tmp);
+  addToSDLog(logLevel, tmp);
 
   // May clear the string, so call as last one.
   if (loglevelActiveFor(LOG_TO_WEBLOG, logLevel)) {
-    Logging.add(logLevel, std::move(string));
+    Logging.add(logLevel, std::move(tmp));
   }
-  // Make sure the string may no longer keep up memory
-  string = String();
 }

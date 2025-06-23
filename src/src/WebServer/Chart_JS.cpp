@@ -4,7 +4,7 @@
 
 # include "../Helpers/StringConverter.h"
 # include "../WebServer/HTML_wrappers.h"
-
+# include "../WebServer/JSON.h"
 
 void add_ChartJS_array(int          valueCount,
                        const String array[])
@@ -25,7 +25,7 @@ void add_ChartJS_array(int          valueCount,
     if (i != 0) {
       addHtml(',', '\n');
     }
-    addHtmlFloat(array[i], nrDecimals);
+    addHtmlFloat_NaN_toNull(array[i], nrDecimals);
   }
 }
 
@@ -47,10 +47,20 @@ void add_ChartJS_chart_header(
   int                        width,
   int                        height,
   const String             & options,
+  bool                       enableZoom,
   size_t                     nrSamples,
   bool                       onlyJSON)
 {
-  add_ChartJS_chart_header(chartType, String(id), chartTitle, width, height, options, nrSamples, onlyJSON);
+  add_ChartJS_chart_header(
+    chartType,
+    String(id),
+    chartTitle,
+    width,
+    height,
+    options,
+    enableZoom,
+    nrSamples,
+    onlyJSON);
 }
 
 void add_ChartJS_chart_header(
@@ -60,6 +70,7 @@ void add_ChartJS_chart_header(
   int                        width,
   int                        height,
   const String             & options,
+  bool                       enableZoom,
   size_t                     nrSamples,
   bool                       onlyJSON)
 {
@@ -79,11 +90,32 @@ void add_ChartJS_chart_header(
               id_c_str,
               id_c_str));
   }
-  add_ChartJS_chart_JSON_header(chartType, chartTitle, options, nrSamples);
+  String plugins;
+
+  if (enableZoom) {
+    plugins = F(
+      "\"zoom\":"
+      "{\"limits\":{"
+      "\"x\":{\"min\":\"original\",\"max\":\"original\",\"minRange\":1000}},"
+      "\"pan\":{\"enabled\":true,\"mode\":\"x\",\"modifierKey\":\"ctrl\"},"
+      "\"zoom\":{"
+      "\"wheel\":{\"enabled\":true},"
+      "\"drag\":{\"enabled\":true},"
+      "\"pinch\":{\"enabled\":true},"
+      "\"mode\":\"x\"}}"
+      );
+  }
+  add_ChartJS_chart_JSON_header(
+    chartType,
+    plugins,
+    chartTitle,
+    options,
+    nrSamples);
 }
 
 void add_ChartJS_chart_JSON_header(
   const __FlashStringHelper *chartType,
+  const String             & plugins,
   const ChartJS_title      & chartTitle,
   const String             & options,
   size_t                     nrSamples)
@@ -91,18 +123,26 @@ void add_ChartJS_chart_JSON_header(
   addHtml(F("{\"type\":\""));
   addHtml(chartType);
   addHtml(F("\",\"options\":{"
-            "\"responsive\":false,\"plugins\":{"
-            "\"legend\":{"
+            "\"responsive\":false,\"plugins\":{"));
+  addHtml(F("\"legend\":{"
             "\"position\":\"top\""
             "},\"title\":"));
   addHtml(chartTitle.toString());
+
+  if (plugins.length() > 0) {
+    addHtml(',');
+  }
+  addHtml(plugins);
   addHtml('}'); // end plugins
 
   if (nrSamples >= 60) {
     // Default point radius = 3
     // Typically when having > 64 samples, these points become really cluttered
-    // Thus it is best to remove them by setting the radius to 0.
-    addHtml(F(",\"elements\":{\"point\":{\"radius\":0}}"));
+    // Thus it is best to reduce their radius.
+    const float radius = (plugins.length() > 0) ? 2.5f : 2.0f;
+    addHtml(strformat(
+      F(",\"elements\":{\"point\":{\"radius\":%.1f}}"),
+      radius));
   }
 
   if (!options.isEmpty()) {
@@ -134,10 +174,11 @@ void add_ChartJS_chart_labels(
 
 void add_ChartJS_scatter_data_point(float x, float y, int nrDecimals)
 {
-  addHtml(strformat(
-            F("{\"x\":%s,\"y\":%s},"),
-            toString(x, nrDecimals).c_str(),
-            toString(y, nrDecimals).c_str()));
+  addHtml(F("{\"x\":"));
+  addHtmlFloat_NaN_toNull(x, nrDecimals);
+  addHtml(F(",\"y\":"));
+  addHtmlFloat_NaN_toNull(y, nrDecimals);
+  addHtml('}', ',');
 }
 
 void add_ChartJS_dataset(
@@ -157,16 +198,20 @@ void add_ChartJS_dataset_header(const ChartJS_dataset_config& config)
   addHtml('{');
 
   if (!config.label.isEmpty()) {
-    addHtml(strformat(F("\"label\":\"%s\","), config.label.c_str()));
+    stream_to_json_object_value(F("label"), config.label);
+    addHtml(',');
   }
 
   if (!config.color.isEmpty()) {
-    addHtml(strformat(F("\"backgroundColor\":\"%s\","), config.color.c_str()));
-    addHtml(strformat(F("\"borderColor\":\"%s\","), config.color.c_str()));
+    stream_to_json_object_value(F("backgroundColor"), config.color);
+    addHtml(',');
+    stream_to_json_object_value(F("borderColor"), config.color);
+    addHtml(',');
   }
 
   if (!config.axisID.isEmpty()) {
-    addHtml(strformat(F("\"yAxisID\":\"%s\","), config.axisID.c_str()));
+    stream_to_json_object_value(F("yAxisID"), config.axisID);
+    addHtml(',');
   }
 
   if (config.hidden || config.displayConfig.showHidden()) {

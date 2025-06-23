@@ -40,7 +40,6 @@ struct ProvisioningStruct
   char url[128] = { 0 };
 
   union {
-    uint16_t allowed{};
     struct {
       uint16_t allowFetchFirmware :1;
       uint16_t allowFetchConfigDat :1;
@@ -51,13 +50,14 @@ struct ProvisioningStruct
 
       uint16_t unused :7;  // Add to use full 16 bit.
     } allowedFlags;
+    uint16_t _allBits;
   };
-
-
 };
 
 typedef std::shared_ptr<ProvisioningStruct> ProvisioningStruct_ptr_type;
-# define MakeProvisioningSettings(T) ProvisioningStruct_ptr_type T(new (std::nothrow) ProvisioningStruct());
+
+#define MakeProvisioningSettings(T) void * calloc_ptr = special_calloc(1,sizeof(ProvisioningStruct)); ProvisioningStruct_ptr_type T(new (calloc_ptr)  ProvisioningStruct());
+
 
 
 #endif // if FEATURE_CUSTOM_PROVISIONING

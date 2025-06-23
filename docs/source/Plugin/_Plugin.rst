@@ -191,17 +191,19 @@ It is also possible to refer to other task values and system variables. (added: 
 
 .. note:: The syntax in the formula field is nearly the same as in the rules. Only the ``%value%`` and ``%pvalue%`` cannot be used in rules.
 
+For builds that have String Variables enabled (ESP32 only), there's a secondary use of the Formula field. Where a formula is used to re-calculate the data into a different value to be presented and sent to Controllers and in the regular events, this field can also be used to change the presentation on the Devices page (only) of the value.
 
-Stats
-^^^^^
+This Presentation format is enabled by placing a ``$`` sign as the first character in the field. The rest of the formula field is then handled like a formula, or rules, but the resulting output will *only* be used instead of the normal display on the Devices page. The presentation output can also be used in Rules and on Displays by using the Formatting option ``$``, like this: ``[bme#temperature#$]``, and is included in the JSON output per taskvalue from the ``/json`` endpoint as ``Presentation``, when it is set.
 
-(Added: 2022/07/11)
+Examples:
 
-This checkbox allows to collect some historic data of this task value.
-On ESP32 it will collect upto 64 samples. On ESP8266 this is limited to 16 samples due to memory.
+Show the temperature both in Celcius and Fahrenheit:
 
-When checked, the last N samples of each checked task value will be shown in a chart in the "Statistics" section.
+.. code-block:: none
 
+  $%value% {D}C %c_c2f%(%value%) {D}F
+
+This presentation feature is a limited version (in length) of what's available via the ``TaskValueSetPresentation`` command, that doesn't need adding commands to Rules that are set during startup.
 
 
 Decimals
@@ -213,6 +215,48 @@ For example, when referring to a task value on a display via ``[bme#temperature]
 See :ref:`Rules: Formatting referred values <Formatting values>` on how this can be customized.
 Just remember such formatting cannot "make up" more decimals than what was set here in the task setup.
 
+
+Stats
+^^^^^
+
+(Added: 2022/07/11)
+
+This checkbox allows to collect some historic data of this task value.
+On ESP32 it will collect upto 255 samples. On ESP8266 this is limited to 16 samples due to memory.
+
+When checked, the last N samples of each checked task value will be shown in a chart in the "Statistics" section.
+
+
+Hide
+^^^^
+
+When Hide is checked, the value will be hidden from the graph by default, but can be enabled by clicking the colored tag above the graph.
+
+Axis
+^^^^
+
+Per Value you can select on what axis (Left or Right, 1..4) the value should be shown. This helps keeping the graph charts usable when the value units are in different ranges/magnitudes.
+
+
+Unit of Measure
+^^^^^^^^^^^^^^^
+
+(Added: 2025/06/12)
+
+On selected builds (ESP32 only, can be enabled in ESP8266 Custom builds) per value a Unit of Measure can be selected.
+
+If set the UoM will be space-appended to the value when displayed on the Devices page, used in the labels for the Stats display, and later used in the MQTT AutoDiscovery messages so the receiving server can use that for presentation. When set it is also included in the JSON output as ``UoM`` per taskvalue, available at the ``/json`` endpoint of the ESP, to be used by external systems like EasyFetch.
+
+A list of 100+ Unit of Measure values is available (derived of what's supported by Home Assistant):
+
+``°C, °F, K, %, Pa, hPa, bar, mbar, inHg, psi, W, kW, V, Wh, kWh, A, VA, mm, cm, m, km,`` ``L, mL, m³, ft³, m³/h, ft³/h, lx, UV index, µg/m³, mg/m³, p/m³, ppm, ppb,``
+``°, €, $, ¢, µs, ms, s, min, h, d, w, m, y, in, ft, yd, mi, Hz, GHz, gal, fl. oz, m²,`` ``g, kg, mg, µg, oz, lb, µS/cm, W/m², mm/h, mm/s, in/s, m/s, in/h, km/h, mph, db, dBm,``
+``bit, kbit, Mbit, Gbit, B, kB, MB, GB, TB, PB, EB, ZB, YB, KiB, MiB, GiB, TiB, PiB, EiB, ZiB, YiB,`` ``bit/s, kbit/s, Mbit/s, Gbit/s, B/s, kB/s, MB/s, GB/s, KiB/s, MiB/s, GiB/s``
+
+Displaying the Unit of Measure can be disabled by unchecking the **Show Unit of Measure** checkbox on the Tools/Advanced page.
+
+|
+
 .. _Plugin List:
 
 List of official plugins
@@ -222,13 +266,13 @@ There are different released versions of ESP Easy:
 
 :green:`NORMAL` is the regular set of plugins, this is the base set of plugins, and with all secondary features enabled, like I2C multiplexer, RTTTL, DEBUG logging, etc.
 
-:yellow:`COLLECTION` (split into sets A..x) with plugins that don't fit into the NORMAL builds. Because of space limitations, this collection is split into a number of sets. When only :yellow:`COLLECTION` is mentioned, the plugin is available in **all** :yellow:`COLLECTION` builds. Also, some features are disabled to save space in the .bin files, like RTTTL, tooltips, and DEBUG-level logging.
+:yellow:`COLLECTION` (split into sets A..x) with plugins that don't fit into the NORMAL builds. Because of space limitations, this collection is split into a number of sets. When only :yellow:`COLLECTION` is mentioned, the plugin is available in **all** :yellow:`COLLECTION` builds, though some exceptions may be applied. Also, some features are disabled to save space in the .bin files, like RTTTL, Servo, tooltips, and DEBUG-level logging.
 
 :red:`DEVELOPMENT` is used for plugins that are still being developed and are not considered stable at all. Currently there are no DEVELOPMENT builds available.
 
 :yellow:`ENERGY` :yellow:`DISPLAY` :yellow:`IR` :yellow:`IRext` :yellow:`NEOPIXEL` :yellow:`CLIMATE` are specialized builds holding all Energy-, Display-, Infra Red- (extended), NeoPixel- and Climate- related plugins.
 
-:yellow:`MAX` is the build that has all plugins that are available in the ESPEasy repository. Available for ESP32 16MB and ESP32-s3 8MB Flash units.
+:yellow:`MAX` is the build that has all plugins that are available in the ESPEasy repository. Available for ESP32 16MB and ESP32 8MB Flash units (available for ESP32 Classic, ESP32-S3 and ESP32-C6).
 
 :gray:`RETIRED` plugin has been retired and removed from ESPEasy.
 
@@ -333,7 +377,7 @@ There are different released versions of ESP Easy:
    ":ref:`P092_page`","|P092_status|","P092"
    ":ref:`P093_page`","|P093_status|","P093"
    ":ref:`P094_page`","|P094_status|","P094"
-   ":ref:`P095_page`","|P095_status|","P095"
+   ":ref:`P095_page`","|P095_status| (ESP32)","P095"
    ":ref:`P097_page`","|P097_status|","P097"
    ":ref:`P098_page`","|P098_status|","P098"
    ":ref:`P099_page`","|P099_status|","P099"
@@ -360,6 +404,7 @@ There are different released versions of ESP Easy:
    ":ref:`P120_page`","|P120_status|","P120"
    ":ref:`P121_page`","|P121_status|","P121"
    ":ref:`P122_page`","|P122_status|","P122"
+   ":ref:`P123_page`","|P123_status|","P123"
    ":ref:`P124_page`","|P124_status|","P124"
    ":ref:`P125_page`","|P125_status|","P125"
    ":ref:`P126_page`","|P126_status|","P126"
@@ -373,7 +418,10 @@ There are different released versions of ESP Easy:
    ":ref:`P135_page`","|P135_status|","P135"
    ":ref:`P137_page`","|P137_status|","P137"
    ":ref:`P138_page`","|P138_status|","P138"
+   ":ref:`P139_page`","|P139_status|","P139"
+   ":ref:`P140_page`","|P140_status|","P140"
    ":ref:`P141_page`","|P141_status|","P141"
+   ":ref:`P142_page`","|P142_status|","P142"
    ":ref:`P143_page`","|P143_status|","P143"
    ":ref:`P144_page`","|P144_status|","P144"
    ":ref:`P145_page`","|P145_status|","P145"
@@ -386,7 +434,27 @@ There are different released versions of ESP Easy:
    ":ref:`P153_page`","|P153_status|","P153"
    ":ref:`P154_page`","|P154_status|","P154"
    ":ref:`P159_page`","|P159_status|","P159"
+   ":ref:`P162_page`","|P162_status|","P162"
+   ":ref:`P163_page`","|P163_status|","P163"
+   ":ref:`P164_page`","|P164_status|","P164"
+   ":ref:`P165_page`","|P165_status|","P165"
+   ":ref:`P166_page`","|P166_status|","P166"
+   ":ref:`P167_page`","|P167_status|","P167"
+   ":ref:`P168_page`","|P168_status|","P168"
+   ":ref:`P169_page`","|P169_status|","P169"
+   ":ref:`P170_page`","|P170_status|","P170"
+   ":ref:`P172_page`","|P172_status|","P172"
+   ":ref:`P173_page`","|P173_status|","P173"
+   ":ref:`P175_page`","|P175_status|","P175"
+   ":ref:`P176_page`","|P176_status|","P176"
+   ":ref:`P177_page`","|P177_status|","P177"
+   ":ref:`P178_page`","|P178_status|","P178"
 
+
+.. include:: _plugin_sets_overview.repl
+
+Plugins per Category
+====================
 
 Internal GPIO handling
 ----------------------
@@ -456,6 +524,8 @@ Extra IO
 --------
 
 Plugins: |Plugin_Extra_IO|
+
+Hardware: |P178_usedby|
 
 Gases
 -----

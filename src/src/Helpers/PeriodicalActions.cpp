@@ -96,12 +96,15 @@ void run10TimesPerSecond() {
   }
   
   #ifdef USES_C015
-  if (NetworkConnected())
-      Blynk_Run_c015();
+  if (NetworkConnected()) {
+    Blynk_Run_c015();
+  }
   #endif
-  #ifndef USE_RTOS_MULTITASKING
+  if (!UseRTOSMultitasking) {
+    START_TIMER
     web_server.handleClient();
-  #endif
+    STOP_TIMER(WEBSERVER_HANDLE_CLIENT);
+  }
 }
 
 
@@ -118,7 +121,9 @@ void runOncePerSecond()
     RTC.flashDayCounter=0;
     saveToRTC();
     dailyResetCounter=0;
+    #ifndef BUILD_MINIMAL_OTA
     addLog(LOG_LEVEL_INFO, F("SYS  : Reset 24h counters"));
+    #endif
   }
 
   if (Settings.ConnectionFailuresThreshold)
@@ -169,6 +174,9 @@ void runOncePerSecond()
   // I2C Watchdog feed
   if (Settings.WDI2CAddress != 0)
   {
+    #if FEATURE_I2C_MULTIPLE
+    I2CSelectHighClockSpeed(Settings.getI2CInterfaceWDT()); // Select bus
+    #endif // if FEATURE_I2C_MULTIPLE
     I2C_write8(Settings.WDI2CAddress, 0xA5);
   }
 
@@ -365,10 +373,10 @@ void updateMQTTclient_connected() {
   if (!MQTTclient_connected) {
     // As suggested here: https://github.com/letscontrolit/ESPEasy/issues/1356
     if (timermqtt_interval < 30000) {
-      timermqtt_interval += 5000;
+      timermqtt_interval += 500;
     }
   } else {
-    timermqtt_interval = 250;
+    timermqtt_interval = 100;
   }
   Scheduler.setIntervalTimer(SchedulerIntervalTimer_e::TIMER_MQTT);
   scheduleNextMQTTdelayQueue();
@@ -491,7 +499,7 @@ void prepareShutdown(IntendedRebootReason_e reason)
   ESPEASY_FS.end();
   process_serialWriteBuffer();
   delay(100); // give the node time to flush all before reboot or sleep
-  node_time.now();
+  node_time.now_();
   Scheduler.markIntendedReboot(reason);
   saveToRTC();
 }

@@ -5,7 +5,7 @@
     To modify the stock configuration without changing the EspEasy.ino file :
     1) rename this file to "Custom.h" (It is ignored by Git)
     2) define your own settings below
-    3) define USE_CUSTOM_H as a build flags. ie : export PLATFORMIO_BUILD_FLAGS="'-DUSE_CUSTOM_H'"
+    3) Build one of the environments with Custom in their name, they will automatically use this file if it exists
  */
 
 
@@ -22,11 +22,14 @@
 // --- Feature Flagging ---------------------------------------------------------
 // Can be set to 1 to enable, 0 to disable, or not set to use the default (usually via define_plugin_sets.h)
 
-#define FEATURE_RULES_EASY_COLOR_CODE    1   // Use code highlighting, autocompletion and command suggestions in Rules
-#define FEATURE_ESPEASY_P2P       1     // (1/0) enables the ESP Easy P2P protocol
-#define FEATURE_ARDUINO_OTA       1     //enables the Arduino OTA capabilities
-// #define FEATURE_SD                1     // Enable SD card support
-// #define FEATURE_DOWNLOAD          1     // Enable downloading a file from an url
+#define FEATURE_RULES_EASY_COLOR_CODE   1  // Use code highlighting, autocompletion and command suggestions in Rules
+#define FEATURE_ESPEASY_P2P             1  // (1/0) enables the ESP Easy P2P protocol
+#define FEATURE_ARDUINO_OTA             1  // enables the Arduino OTA capabilities
+#define FEATURE_THINGSPEAK_EVENT        0  // Generates an event when requesting last value of a field in thingspeak via SendToHTTP(e.g. sendToHTTP,api.thingspeak.com,80,/channels/1667332/fields/5/last)
+#define FEATURE_OPENMETEO_EVENT         0  // Generates an event with the response of a open-meteo request (https://open-meteo.com/en/docs)
+#define FEATURE_JSON_EVENT              0  // Generates an event with the values of a JSON repsonse of an HTTP call. Keys are stored in json.keys one key per line (e.g.: Body.Data.DAY_ENERGY.Values.1)
+// #define FEATURE_SD                   1  // Enable SD card support
+// #define FEATURE_DOWNLOAD             1  // Enable downloading a file from an url
 
 #ifdef BUILD_GIT
 # undef BUILD_GIT
@@ -119,6 +122,10 @@
 #ifdef ESP32
 #define DEFAULT_PIN_I2C_SCL                     -1                // Undefined
 #endif
+#define DEFAULT_PIN_I2C2_SDA                    -1                // Undefined
+#define DEFAULT_PIN_I2C3_SDA                    -1                // Undefined
+#define DEFAULT_PIN_I2C2_SCL                    -1                // Undefined
+#define DEFAULT_PIN_I2C3_SCL                    -1                // Undefined
 #define DEFAULT_I2C_CLOCK_SPEED                 400000            // Use 100 kHz if working with old I2C chips
 #define FEATURE_I2C_DEVICE_SCAN                 1
 
@@ -214,10 +221,10 @@
 
 #define FEATURE_PLUGIN_STATS  1    // Support collecting historic data + computing stats on historic data
 #ifdef ESP8266
-#  define PLUGIN_STATS_NR_ELEMENTS 16
+// #  define PLUGIN_STATS_NR_ELEMENTS 16
 #endif // ifdef ESP8266
 # ifdef ESP32
-#  define PLUGIN_STATS_NR_ELEMENTS 64
+// #  define PLUGIN_STATS_NR_ELEMENTS 64
 #endif // ifdef ESP32
 #define FEATURE_CHART_JS  1        // Support for drawing charts, like PluginStats historic data
 
@@ -243,6 +250,7 @@
 // #define FEATURE_ANYRTTTL_LIB 1 // Use AnyRttl library for RTTTL handling
 // #define FEATURE_ANYRTTTL_ASYNC 1 // When AnyRttl enabled, use Async (nonblocking) mode instead of the default Blocking mode
 // #define FEATURE_RTTTL_EVENTS   1 // Enable RTTTL events for Async use, for blocking it doesn't make sense
+// #define FEATURE_STRING_VARIABLES 1 // Enable String variable support (enabled on ESP32, NOT supported on ESP8266 for memory restrictions!)
 
 #if FEATURE_CUSTOM_PROVISIONING
 // For device models, see src/src/DataTypes/DeviceModel.h
@@ -271,7 +279,6 @@
 
 
 
-#define FEATURE_SSDP  1
 
 /*
  #######################################################################################################
@@ -399,13 +406,14 @@ static const char DATA_ESPEASY_DEFAULT_MIN_CSS[] PROGMEM = {
 //   #define P037_FILTER_SUPPORT  1 // Enable filtering support
 //   #define P037_JSON_SUPPORT    1 // Enable Json support
 // #define USES_P038   // NeoPixel
+//   #define P038_FEATURE_NEOPIXELFOR 1 // Enable NeoPixelFor/NeoPixelForHSV commands (default enabled for ESP32)
 // #define USES_P039   // Thermocouple
 
 // #define USES_P040   // RFID - ID12LA/RDM6300
 // #define USES_P041   // NeoPixel (Word Clock)
 // #define USES_P042   // NeoPixel (Candle)
 // #define USES_P043   // ClkOutput
-// #define USES_P044   // P1 Wifi Gateway
+// #define USES_P044   // P1 Wifi Gateway (Merged with P020, when P044 is enabled, then P020 is also enabled)
 // #define USES_P045   // MPU6050
 // #define USES_P046   // Ventus W266
 // #define USES_P047   // Soil moisture sensor
@@ -492,6 +500,7 @@ static const char DATA_ESPEASY_DEFAULT_MIN_CSS[] PROGMEM = {
 // #define USES_P120   // ADXL345 I2C Acceleration / Gravity
 // #define USES_P121   // HMC5883L
 // #define USES_P122   // SHT2x
+// #define USES_P123   // I2C Touchscreens
 // #define USES_P124   // I2C Multi Relay
 // #define USES_P125   // ADXL345 SPI Acceleration / Gravity
 // #define USES_P126   // 74HC595 Shift register
@@ -515,8 +524,12 @@ static const char DATA_ESPEASY_DEFAULT_MIN_CSS[] PROGMEM = {
 //   #define P135_FEATURE_RESET_COMMANDS  1 // Enable/Disable quite spacious (~950 bytes) 'selftest' and 'factoryreset' subcommands
 // #define USES_P137   // AXP192
 // #define USES_P138   // IP5306
+// #define USES_P139   // AXP2101
 
+// #define USES_P140   // CardKB
+// #define UN_USES_P140   // **DISABLE** I2C CardKB for ESP32 (Enabled by default for ESP32)
 // #define USES_P141   // PCD8544 Nokia 5110 LCD
+// #define USES_P142   // Position - AS5600
 // #define USES_P143   // I2C Rotary encoders
 //   #define P143_FEATURE_INCLUDE_M5STACK      0 // Enabled by default, can be turned off here
 //   #define P143_FEATURE_INCLUDE_DFROBOT      0 // Enabled by default, can be turned off here
@@ -527,15 +540,31 @@ static const char DATA_ESPEASY_DEFAULT_MIN_CSS[] PROGMEM = {
 // #define USES_P146   // Cache Reader
 // #define USES_P147   // SGP4x
 //   #define P147_FEATURE_GASINDEXALGORITHM    0 // Enabled by default, can be turned off here
-
 // #define USES_P148   // POWR3xxD/THR3xxD
+
 // #define USES_P150   // TMP117 Temperature
 // #define USES_P151   // Honeywell Pressure
 // #define USES_P152   // ESP32 DAC
 // #define USES_P153   // SHT4x
-// #define USES_P154   // BMP3xx
+// #define USES_P154   // BMP3xx I2C
 
 // #define USES_P159   // Presence - LD2410 Radar detection
+
+// #define USES_P162   // Output - MCP42xxx Digipot
+// #define USES_P163   // Environment - RadSens I2C radiation counter
+// #define USES_P164   // Gases - ENS16x TVOC/eCO2
+// #define USES_P165   // Display - NeoPixel (7-segment)
+// #define USES_P166   // Output - GP8403 Dual channel DAC (Digital Analog Converter)
+// #define USES_P167   // Environment - Sensirion SEN5x / Ikea Vindstyrka
+// #define USES_P168   // Light - VEML6030/VEML7700
+// #define USES_P169   // Environment - AS3935 Lightning Detector
+
+// #define USES_P170   // Input - I2C Liquid level sensor
+// #define USES_P172   // BMP3xx SPI.
+// #define USES_P173   // Environment - SHTC3
+// #define USES_P175   // Dust - PMSx003i I2C
+// #define USES_P176   // Communication - Victron VE.Direct
+// #define USES_P178   // LU9685 Servo controller
 
 /*
  #######################################################################################################

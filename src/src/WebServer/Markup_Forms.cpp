@@ -40,6 +40,12 @@ void addFormNote(const String& text, const String& id)
   addHtmlDiv(F("note"), concat(F("Note: "), text));
 }
 
+void addFormNote(const LabelType::Enum& label)
+{
+  addUnit(getFormUnit(label));
+  addFormNote(getFormNote(label));
+}
+
 // ********************************************************************************
 // Create Forms
 // ********************************************************************************
@@ -97,6 +103,7 @@ void addFormCheckBox(LabelType::Enum label, bool checked, bool disabled
                   , tooltip
                   #endif // if FEATURE_TOOLTIPS
                   );
+  addFormNote(label);
 }
 
 void addFormCheckBox_disabled(LabelType::Enum label, bool checked) {
@@ -119,6 +126,7 @@ void addFormNumericBox(LabelType::Enum label, int value, int min, int max
                     #endif // if FEATURE_TOOLTIPS
                     , disabled
                     );
+  addFormNote(label);
 }
 
 void addFormNumericBox(const __FlashStringHelper * label, 
@@ -153,7 +161,8 @@ void addFormNumericBox(const String& label, const String& id, int value, int min
   addRowLabel_tr_id(label, id);
   addNumericBox(id, value, min, max
                 #if FEATURE_TOOLTIPS
-                , F("widenumber"), tooltip
+                , F("widenumber")
+                , tooltip
                 #endif // if FEATURE_TOOLTIPS
                 , disabled
                 );
@@ -169,6 +178,7 @@ void addFormFloatNumberBox(LabelType::Enum label, float value, float min, float 
                         , tooltip
                         #endif // if FEATURE_TOOLTIPS
                         );
+  addFormNote(label);
 }
 
 void addFormFloatNumberBox(const String& label,
@@ -330,10 +340,7 @@ void addFormPasswordBox(const String& label, const String& id, const String& pas
   addHtmlAttribute(F("maxlength"), maxlength);
 
   #if FEATURE_TOOLTIPS
-
-  if (tooltip.length() > 0) {
-    addHtmlAttribute(F("title"), tooltip);
-  }
+  addTooltip(tooltip);
   #endif // if FEATURE_TOOLTIPS
   addHtmlAttribute(F("value"), (password.length() == 0) ? F("") : F("*****"));
   addHtml('>');
@@ -342,6 +349,11 @@ void addFormPasswordBox(const String& label, const String& id, const String& pas
 bool getFormPassword(const String& id, String& password)
 {
   password = webArg(id);
+  /*
+  if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
+    addLog(LOG_LEVEL_DEBUG, concat(F("getFormPassword: "), password));
+  } 
+  */ 
   return !equals(password, F("*****"));
 }
 
@@ -413,7 +425,8 @@ void addFormSeparatorCharInput(const __FlashStringHelper *rowLabel,
     charList[i + 1] = charset[i];
     charOpts[i + 1] = static_cast<int>(charset[i]);
   }
-  addFormSelector(rowLabel, id, len, charList, charOpts, value);
+  const FormSelectorOptions selector(len, charList, charOpts);
+  selector.addFormSelector(rowLabel, id, value);
 
   if (!String(additionalText).isEmpty()) {
     addUnit(additionalText);
@@ -457,13 +470,20 @@ void addFormPinSelect(const String& label, const String & id, int choice)
 }
 */
 
-void addFormPinSelectI2C(const String& label, const String& id, int choice)
+void addFormPinSelectI2C(const String& label, const String& id, uint8_t i2cBus, int choice)
 {
   addRowLabel_tr_id(label, id);
-  addPinSelect(PinSelectPurpose::I2C, id, choice);
+  const PinSelectPurpose purpose = static_cast<PinSelectPurpose>(
+  static_cast<uint8_t>(PinSelectPurpose::I2C) + i2cBus);
+
+  addPinSelect(purpose, id, choice);
 }
 
-void addFormSelectorI2C(const String& id, int addressCount, const uint8_t addresses[], int selectedIndex
+void addFormSelectorI2C(const String& id,
+                        int           addressCount,
+                        const uint8_t addresses[],
+                        int           selectedIndex,
+                        uint8_t       defaultAddress
                         #if FEATURE_TOOLTIPS
                         , const String& tooltip
                         #endif // if FEATURE_TOOLTIPS
@@ -476,163 +496,15 @@ void addFormSelectorI2C(const String& id, int addressCount, const uint8_t addres
                       #endif // if FEATURE_TOOLTIPS
                       );
 
-  for (uint8_t x = 0; x < addressCount; x++)
+  for (int x = 0; x < addressCount; x++)
   {
     String option = formatToHex_decimal(addresses[x]);
 
-    if (x == 0) {
-      option += F(" - (default)");
+    if (((x == 0) && (defaultAddress == 0)) || (defaultAddress == addresses[x])) {
+      option += F(" (default)");
     }
     addSelector_Item(option, addresses[x], addresses[x] == selectedIndex);
   }
-  addSelector_Foot();
-}
-
-void addFormSelector(const __FlashStringHelper * label, const __FlashStringHelper * id, int optionCount, const __FlashStringHelper * options[], const int indices[], int selectedIndex, bool reloadonchange)
-{
-  addFormSelector(String(label), String(id), optionCount, options, indices, nullptr, selectedIndex, reloadonchange);
-}
-
-void addFormSelector(const __FlashStringHelper * label, const String& id, int optionCount, const __FlashStringHelper * options[], const int indices[], int selectedIndex, bool reloadonchange)
-{
-  addFormSelector(String(label), id, optionCount, options, indices, nullptr, selectedIndex, reloadonchange);
-}
-
-void addFormSelector(const String& label, const String& id, int optionCount, const __FlashStringHelper * options[], const int indices[], int selectedIndex)
-{
-  addFormSelector(label, id, optionCount, options, indices, nullptr, selectedIndex, false);
-}
-
-void addFormSelector(const __FlashStringHelper * label, const __FlashStringHelper * id, int optionCount, const String options[], const int indices[], int selectedIndex)
-{
-  addFormSelector(String(label), String(id), optionCount, options, indices, nullptr, selectedIndex, false);
-}
-
-void addFormSelector(const String  & label,
-                     const String  & id,
-                     int             optionCount,
-                     const String    options[],
-                     const int       indices[],
-                     int           selectedIndex
-                     #if FEATURE_TOOLTIPS
-                     , const String& tooltip
-                     #endif // if FEATURE_TOOLTIPS
-                     )
-{
-  addFormSelector(label, id, optionCount, options, indices, nullptr, selectedIndex, false
-                  #if FEATURE_TOOLTIPS
-                  , tooltip
-                  #endif // if FEATURE_TOOLTIPS
-                  );
-}
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const __FlashStringHelper * options[],
-                     const int     indices[],
-                     int           selectedIndex,
-                     bool          reloadonchange)
-{
-  addFormSelector(label, id, optionCount, options, indices, nullptr, selectedIndex, reloadonchange);
-}
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const __FlashStringHelper * options[],
-                     const int     indices[],
-                     const String  attr[],
-                     int           selectedIndex,
-                     bool          reloadonchange)
-{
-  addRowLabel_tr_id(label, id);
-  addSelector(id, optionCount, options, indices, attr, selectedIndex, reloadonchange, true);
-}
-
-void addFormSelector(const String& label,
-                     const String& id,
-                     int           optionCount,
-                     const String  options[],
-                     const int     indices[],
-                     int           selectedIndex,
-                     bool          reloadonchange
-                     #if FEATURE_TOOLTIPS
-                     , const String& tooltip
-                     #endif // if FEATURE_TOOLTIPS
-                    )
-{
-  addFormSelector(label, id, optionCount, options, indices, nullptr, selectedIndex, reloadonchange
-                  #if FEATURE_TOOLTIPS
-                  , tooltip
-                  #endif // if FEATURE_TOOLTIPS
-                 );
-}
-
-void addFormSelector(const String  & label,
-                     const String  & id,
-                     int             optionCount,
-                     const String    options[],
-                     const int       indices[],
-                     const String    attr[],
-                     int             selectedIndex,
-                     bool       reloadonchange
-                     #if FEATURE_TOOLTIPS
-                     , const String& tooltip
-                     #endif // if FEATURE_TOOLTIPS
-                     )
-{
-  addRowLabel_tr_id(label, id);
-  addSelector(id, optionCount, options, indices, attr, selectedIndex, reloadonchange, true, F("wide")
-              #if FEATURE_TOOLTIPS
-              , tooltip
-              #endif // if FEATURE_TOOLTIPS
-              );
-}
-
-void addFormSelector_script(const __FlashStringHelper * label,
-                            const __FlashStringHelper * id,
-                            int           optionCount,
-                            const __FlashStringHelper * options[],
-                            const int     indices[],
-                            const String  attr[],
-                            int           selectedIndex,
-                            const __FlashStringHelper * onChangeCall
-                            #if FEATURE_TOOLTIPS
-                            , const String& tooltip
-                            #endif // if FEATURE_TOOLTIPS
-                            )
-{
-  addRowLabel_tr_id(label, id);
-  do_addSelector_Head(id, F("wide"), onChangeCall, false
-                      #if FEATURE_TOOLTIPS
-                      , tooltip
-                      #endif // if FEATURE_TOOLTIPS
-                      );
-  addSelector_options(optionCount, options, indices, attr, selectedIndex);
-  addSelector_Foot();
-}
-
-void addFormSelector_script(const __FlashStringHelper * label,
-                            const __FlashStringHelper * id,
-                            int             optionCount,
-                            const String    options[],
-                            const int       indices[],
-                            const String    attr[],
-                            int             selectedIndex,
-                            const __FlashStringHelper * onChangeCall
-                            #if FEATURE_TOOLTIPS
-                            , const String& tooltip
-                            #endif // if FEATURE_TOOLTIPS
-                            )
-{
-  addRowLabel_tr_id(label, id);
-  do_addSelector_Head(id, F("wide"), onChangeCall, false
-                      #if FEATURE_TOOLTIPS
-                      , tooltip
-                      #endif // if FEATURE_TOOLTIPS
-                      );
-  addSelector_options(optionCount, options, indices, attr, selectedIndex);
   addSelector_Foot();
 }
 
@@ -649,9 +521,11 @@ void addFormSelector_YesNo(const __FlashStringHelper * label,
                            int           selectedIndex,
                            bool       reloadonchange)
 {
-  const __FlashStringHelper *optionsNoYes[2] = { F("No"), F("Yes") };
-  int optionValuesNoYes[2]                   = { 0, 1 };
-  addFormSelector(label, id, 2, optionsNoYes, optionValuesNoYes, selectedIndex, reloadonchange);
+  const __FlashStringHelper *optionsNoYes[] = { F("No"), F("Yes") };
+  //int optionValuesNoYes[]                   = { 0, 1 };
+  FormSelectorOptions selector(NR_ELEMENTS(optionsNoYes), optionsNoYes);
+  selector.reloadonchange = reloadonchange;
+  selector.addFormSelector(label, id, selectedIndex);
 }
 
 
@@ -675,12 +549,6 @@ void addFormPinStateSelect(int gpio, int choice)
   bool input, output, warning;
 
   if (getGpioInfo(gpio, pinnr, input, output, warning)) {
-    const String id = String('p') + gpio;
-    addRowLabel_tr_id(
-      concat(
-        F("Pin mode "), 
-        createGPIO_label(gpio, pinnr, input, output, warning)), 
-      id);
     bool hasPullUp, hasPullDown;
     getGpioPullResistor(gpio, hasPullUp, hasPullDown);
     int nr_options = 0;
@@ -718,13 +586,22 @@ void addFormPinStateSelect(int gpio, int choice)
         ++nr_options;
       }
     }
-    addSelector(id, nr_options, options, option_val, nullptr, choice, false, enabled);
-    {
-      const String conflict = getConflictingUse(gpio);
-      if (!conflict.isEmpty()) {
-        addUnit(conflict);
-      }
+    FormSelectorOptions selector(nr_options, options, option_val);
+    selector.enabled = enabled;
+
+    const String id = String('p') + gpio;
+    selector.addFormSelector(
+      concat(
+        F("Pin mode "), 
+        createGPIO_label(gpio, pinnr, input, output, warning)), 
+      id,
+      choice);
+    addUnit(getConflictingUse(gpio));
+    #ifdef ESP32
+    if (isPSRAMInterfacePin(gpio)) {
+      addUnit(getConflictingUse(gpio, PinSelectPurpose::Generic, true));
     }
+    #endif // ifdef ESP32
   }
 }
 
@@ -759,6 +636,23 @@ bool update_whenset_FormItemInt(const __FlashStringHelper * key,
 }
 
 bool update_whenset_FormItemInt(const String& key, int& value) {
+  int tmpVal;
+
+  if (getCheckWebserverArg_int(key, tmpVal)) {
+    value = tmpVal;
+    return true;
+  }
+  return false;
+}
+
+bool update_whenset_FormItemInt(const __FlashStringHelper * key,
+                                int8_t& value) 
+{
+  return update_whenset_FormItemInt(String(key), value);
+}
+
+
+bool update_whenset_FormItemInt(const String& key, int8_t& value) {
   int tmpVal;
 
   if (getCheckWebserverArg_int(key, tmpVal)) {

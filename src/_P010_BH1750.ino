@@ -23,18 +23,15 @@ boolean Plugin_010(uint8_t function, struct EventStruct *event, String& string)
   {
     case PLUGIN_DEVICE_ADD:
     {
-      Device[++deviceCount].Number           = PLUGIN_ID_010;
-      Device[deviceCount].Type               = DEVICE_TYPE_I2C;
-      Device[deviceCount].VType              = Sensor_VType::SENSOR_TYPE_SINGLE;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false;
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = true;
-      Device[deviceCount].ValueCount         = 1;
-      Device[deviceCount].SendDataOption     = true;
-      Device[deviceCount].TimerOption        = true;
-      Device[deviceCount].GlobalSyncOption   = true;
-      Device[deviceCount].PluginStats        = true;
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_010;
+      dev.Type           = DEVICE_TYPE_I2C;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_SINGLE;
+      dev.FormulaOption  = true;
+      dev.ValueCount     = 1;
+      dev.SendDataOption = true;
+      dev.TimerOption    = true;
+      dev.PluginStats    = true;
       break;
     }
 
@@ -87,7 +84,9 @@ boolean Plugin_010(uint8_t function, struct EventStruct *event, String& string)
         RESOLUTION_HIGH,
         RESOLUTION_AUTO_HIGH,
       };
-      addFormSelector(F("Measurement mode"), F("pmode"), 4, optionsMode, optionValuesMode, PCONFIG(1));
+      constexpr size_t optionCount = NR_ELEMENTS(optionValuesMode);
+      const FormSelectorOptions selector(optionCount, optionsMode, optionValuesMode);
+      selector.addFormSelector(F("Measurement mode"), F("pmode"), PCONFIG(1));
 
       addFormCheckBox(F("Send sensor to sleep"), F("psleep"), PCONFIG(2));
 
@@ -128,19 +127,16 @@ boolean Plugin_010(uint8_t function, struct EventStruct *event, String& string)
 
       sensor.begin(mode, PCONFIG(2) == 1);
 
-      float lux = sensor.readLightLevel();
+      const float lux = sensor.readLightLevel();
 
-      if (lux != -1) {
+      if (lux != -1.0f) {
         UserVar.setFloat(event->TaskIndex, 0, lux);
 
         if (loglevelActiveFor(LOG_LEVEL_INFO)) {
-          String log = F("BH1750 Address: ");
-          log += formatToHex(PCONFIG(0), 2);
-          log += F(" Mode: ");
-          log += formatToHex(PCONFIG(1), 2);
-          log += F(" : Light intensity: ");
-          log += formatUserVarNoCheck(event->TaskIndex, 0);
-          addLogMove(LOG_LEVEL_INFO, log);
+          addLog(LOG_LEVEL_INFO,
+                 strformat(F("BH1750 Address: 0x%02x Mode: 0x%02x : Light intensity: %s"),
+                           PCONFIG(0),  PCONFIG(1),
+                           formatUserVarNoCheck(event, 0).c_str()));
         }
         success = true;
       }

@@ -73,6 +73,15 @@
 //                                the coordinate set.
 //
 // History:
+// 2025-04-03 tonhuisman: Set character spacing correctly when changing fonts
+// 2023-10-15 tonhuisman: Code improvements, now using NR_ELEMENTS macro instead of multiple #ifdefs and increments
+//                        Re-enable use of settings-version V3 after some more testing
+// 2023-10-08 tonhuisman: Disable use of settings-version V3 for backward compatibility
+// 2023-08-15 tonhuisman: Implement Extended CustomTaskSettings, and use that to significantly improve saving the settings on LittleFS by
+//                        a) only storing the settings-version (V3) in regular CustomTaskSettings file, and the rest in the Extended
+//                           CustomTaskSettings file, by using the offset as a starting location for the data elements
+//                        b) Combine storing the size and the data-block in a single save action
+//                        Apply toStringNoZero() converter to reduce the settings-data to be saved
 // 2023-08-13 tonhuisman: Add Dot subcommand for pixel-drawing in a zone. Can be applied on any type of zone (so can be overwritten by the
 //                        original content when that's updated...)
 //                        Set default Hardware type to FC16, as that's the most used for modules found on Aliexpress
@@ -129,19 +138,11 @@ boolean Plugin_104(uint8_t function, struct EventStruct *event, String& string) 
 
   switch (function) {
     case PLUGIN_DEVICE_ADD: {
-      Device[++deviceCount].Number           = PLUGIN_ID_104;
-      Device[deviceCount].Type               = DEVICE_TYPE_SPI;
-      Device[deviceCount].VType              = Sensor_VType::SENSOR_TYPE_NONE;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false;
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = false;
-      Device[deviceCount].ValueCount         = 0;
-      Device[deviceCount].SendDataOption     = false;
-      Device[deviceCount].TimerOption        = false;
-      Device[deviceCount].TimerOptional      = false;
-      Device[deviceCount].GlobalSyncOption   = true;
-      Device[deviceCount].ExitTaskBeforeSave = false;
+      auto& dev = Device[++deviceCount];
+      dev.Number             = PLUGIN_ID_104;
+      dev.Type               = DEVICE_TYPE_SPI;
+      dev.VType              = Sensor_VType::SENSOR_TYPE_NONE;
+      dev.ExitTaskBeforeSave = false;
       break;
     }
 

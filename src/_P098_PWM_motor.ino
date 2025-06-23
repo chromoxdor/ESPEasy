@@ -51,17 +51,14 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
   {
     case PLUGIN_DEVICE_ADD:
     {
-      Device[++deviceCount].Number           = PLUGIN_ID_098;
-      Device[deviceCount].Type               = DEVICE_TYPE_CUSTOM0;
-      Device[deviceCount].VType              = Sensor_VType::SENSOR_TYPE_QUAD;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false;
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = false;
-      Device[deviceCount].ValueCount         = 4;
-      Device[deviceCount].SendDataOption     = true;
-      Device[deviceCount].TimerOption        = true;
-      Device[deviceCount].TimerOptional      = true;
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_098;
+      dev.Type           = DEVICE_TYPE_CUSTOM0;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_QUAD;
+      dev.ValueCount     = 4;
+      dev.SendDataOption = true;
+      dev.TimerOption    = true;
+      dev.TimerOptional  = true;
       break;
     }
 
@@ -87,22 +84,26 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
         F("M Rev"),
         F("Enc"),
         # ifdef ESP32
+        #if SOC_ADC_SUPPORTED
         F("Analog"),
+        #endif
         # endif // ifdef ESP32
         F("Lim A"),
         F("Lim B")
       };
-      int values[] = {
+      const int values[] = {
         CONFIG_PIN1,
         CONFIG_PIN2,
         CONFIG_PIN3,
         # ifdef ESP32
+        #if SOC_ADC_SUPPORTED
         P098_ANALOG_GPIO,
+        #endif
         # endif // ifdef ESP32
         P098_LIMIT_SWA_GPIO,
         P098_LIMIT_SWB_GPIO
       };
-      constexpr size_t nrElements = sizeof(values) / sizeof(values[0]);
+      constexpr size_t nrElements = NR_ELEMENTS(values);
 
       for (size_t i = 0; i < nrElements; ++i) {
         if (i != 0) { addHtml(event->String1); }
@@ -148,7 +149,9 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
       P098_PWM_FREQ           = 1000;
       P098_PWM_DUTY           = 1023;
       # ifdef ESP32
+      #if SOC_ADC_SUPPORTED
       P098_ANALOG_GPIO = -1; // Analog feedback
+      #endif
       # endif // ifdef ESP32
 
       break;
@@ -184,7 +187,8 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
           options[i]      = P098_config_struct::toString(static_cast<P098_config_struct::PWM_mode_type>(i));
           optionValues[i] = i;
         }
-        addFormSelector(F("Motor Control"), F("motor_contr"), P098_PWM_MODE_TYPES, options, optionValues, P098_MOTOR_CONTROL);
+        const FormSelectorOptions selector(P098_PWM_MODE_TYPES, options, optionValues);
+        selector.addFormSelector(F("Motor Control"), F("motor_contr"), P098_MOTOR_CONTROL);
       }
       addFormNumericBox(F("PWM Frequency"), F("pwm_freq"), P098_PWM_FREQ, 50, 100000);
       addUnit(F("Hz"));
@@ -209,12 +213,12 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
       addUnit(F("steps"));
 
 
-      # ifdef ESP32
-      {
-        addRowLabel(formatGpioName_input_optional(F("Analog Feedback")));
-        addADC_PinSelect(AdcPinSelectPurpose::ADC_Touch_Optional, F("analogpin"), P098_ANALOG_GPIO);
-      }
-      # endif // ifdef ESP32
+# ifdef ESP32
+#if SOC_ADC_SUPPORTED
+      addRowLabel(formatGpioName_input_optional(F("Analog Feedback")));
+      addADC_PinSelect(AdcPinSelectPurpose::ADC_Touch_Optional, F("analogpin"), P098_ANALOG_GPIO);
+#endif
+# endif // ifdef ESP32
 
       addFormSubHeader(F("Limit Switches"));
 
@@ -250,8 +254,8 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
       CONFIG_PIN2 = getFormItemInt(F("taskdevicepin2"));
       CONFIG_PIN3 = getFormItemInt(F("taskdevicepin3"));
 
-      P098_ENC_TIMEOUT = getFormItemInt(F("enc_timeout"));
-      P098_VIRTUAL_SPEED = getFormItemInt(F("virtual_speed"));
+      P098_ENC_TIMEOUT      = getFormItemInt(F("enc_timeout"));
+      P098_VIRTUAL_SPEED    = getFormItemInt(F("virtual_speed"));
       P098_POS_0_SUPPLEMENT = getFormItemInt(F("pos0_supplement"));
 
       P098_LIMIT_SWA_GPIO     = getFormItemInt(F("limit_a"));
@@ -263,7 +267,9 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
       P098_PWM_FREQ      = getFormItemInt(F("pwm_freq"));
       P098_PWM_DUTY      = getFormItemInt(F("pwm_duty"));
       # ifdef ESP32
+      #if SOC_ADC_SUPPORTED
       P098_ANALOG_GPIO = getFormItemInt(F("analogpin"));
+      #endif
       # endif // ifdef ESP32
 
       P098_FLAGS = 0;
@@ -302,7 +308,9 @@ boolean Plugin_098(uint8_t function, struct EventStruct *event, String& string)
       config.limitA.timer_us  = P098_LIMIT_SWA_DEBOUNCE * 1000;
       config.limitB.timer_us  = P098_LIMIT_SWB_DEBOUNCE * 1000;
       # ifdef ESP32
+      #if SOC_ADC_SUPPORTED
       config.gpio_analogIn = P098_ANALOG_GPIO;
+      #endif
       # endif // ifdef ESP32
       config.motorFwd.inverted = bitRead(P098_FLAGS, P098_FLAGBIT_MOTOR_FWD_INVERTED);
       config.motorRev.inverted = bitRead(P098_FLAGS, P098_FLAGBIT_MOTOR_REV_INVERTED);

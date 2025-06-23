@@ -33,6 +33,10 @@
 #include "../Helpers/StringConverter.h"
 #include "../Helpers/StringProvider.h"
 
+#if RESPONSE_PARSER_SUPPORT
+#include "../Helpers/HTTPResponseParser.h"
+#endif
+
 #include "../../ESPEasy-Globals.h"
 
 #include <IPAddress.h>
@@ -42,6 +46,7 @@
 #include <WiFiUdp.h>
 
 #include <lwip/dns.h>
+
 
 // Generic Networking routines
 
@@ -257,6 +262,8 @@ void updateUDPport(bool force)
 boolean runningUPDCheck = false;
 void checkUDP()
 {
+  if (!NetworkConnected())
+    return;
   if (Settings.UDPPort == 0) {
     return;
   }
@@ -264,6 +271,7 @@ void checkUDP()
   if (runningUPDCheck) {
     return;
   }
+  START_TIMER
 
   runningUPDCheck = true;
 
@@ -279,6 +287,11 @@ void checkUDP()
     if (portUDP.remotePort() == 123)
     {
       // unexpected NTP reply, drop for now...
+      while (portUDP.available()) {
+        // Do not call portUDP.flush() as that's meant to sending the packet (on ESP8266)
+        portUDP.read();
+      }
+
       runningUPDCheck = false;
       return;
     }
@@ -289,6 +302,8 @@ void checkUDP()
     // and then crash due to memory allocation failures
     if ((packetSize >= 2) && (packetSize < UDP_PACKETSIZE_MAX)) {
       // Allocate buffer to process packet.
+      // Resize it to be 1 byte larger so we can 0-terminate it 
+      // in case it is some plain text string
       std::vector<char> packetBuffer;
       packetBuffer.resize(packetSize + 1);
 
@@ -310,7 +325,7 @@ void checkUDP()
                   ));
             }
             #endif
-            ExecuteCommand_all(EventValueSource::Enum::VALUE_SOURCE_SYSTEM, &packetBuffer[0]);
+            ExecuteCommand_all({EventValueSource::Enum::VALUE_SOURCE_SYSTEM, &packetBuffer[0]}, true);
           }
           else
           {
@@ -380,6 +395,7 @@ void checkUDP()
     portUDP.read();
   }
   runningUPDCheck = false;
+  STOP_TIMER(CHECK_UDP);
 }
 
 /*********************************************************************************************\
@@ -432,6 +448,60 @@ IPAddress getIPAddressForUnit(uint8_t unit) {
   return it->second.IP();
 }
 
+
+String getNameForUnit(uint8_t unit) {
+  auto it = Nodes.find(unit);
+
+  if (it == Nodes.end() || it->second.getNodeName().isEmpty()) {
+    return EMPTY_STRING;
+  }
+  return it->second.getNodeName();
+}
+
+long getAgeForUnit(uint8_t unit) {
+  auto it = Nodes.find(unit);
+
+  if (it == Nodes.end()) {
+    return -1000; // milliseconds, negative == unknown
+  }
+  return static_cast<long>(it->second.getAge());
+}
+
+uint16_t getBuildnrForUnit(uint8_t unit) {
+  auto it = Nodes.find(unit);
+
+  if (it == Nodes.end() || it->second.build == 0) {
+    return 0;
+  }
+  return it->second.build;
+}
+
+float getLoadForUnit(uint8_t unit) {
+  auto it = Nodes.find(unit);
+
+  if (it == Nodes.end()) {
+    return 0.0f;
+  }
+  return it->second.getLoad();
+}
+
+uint8_t getTypeForUnit(uint8_t unit) {
+  auto it = Nodes.find(unit);
+
+  if (it == Nodes.end()) {
+    return 0;
+  }
+  return it->second.nodeType;
+}
+
+const __FlashStringHelper* getTypeStringForUnit(uint8_t unit) {
+  auto it = Nodes.find(unit);
+
+  if (it == Nodes.end()) {
+    return F("");
+  }
+  return it->second.getNodeTypeDisplayString();
+}
 
 /*********************************************************************************************\
    Refresh aging for remote units, drop if too old...
@@ -617,7 +687,12 @@ bool SSDP_begin() {
     _server = nullptr;
   }
 
-  _server = new (std::nothrow) UdpContext;
+  constexpr unsigned size = sizeof(UdpContext);
+  void *ptr               = special_calloc(1, size);
+
+  if (ptr != nullptr) {
+    _server = new (ptr) UdpContext;
+  }
 
   if (_server == nullptr) {
     return false;
@@ -702,7 +777,16 @@ void SSDP_send(uint8_t method) {
               (uint16_t)((chipId >>  8) & 0xff),
               (uint16_t)chipId        & 0xff);
 
-    char *buffer = new (std::nothrow) char[1460]();
+    char *buffer = nullptr;
+    # ifdef USE_SECOND_HEAP
+    {
+      HeapSelectIram ephemeral;
+      buffer = new (std::nothrow) char[1460]();
+    }
+    # endif // ifdef USE_SECOND_HEAP
+    if (buffer == nullptr) {
+      buffer = new (std::nothrow) char[1460]();
+    }
 
     if (buffer == nullptr) { return; }
     int len = snprintf(buffer, 1460,
@@ -944,6 +1028,7 @@ bool useStaticIP() {
 
 // Check connection. Maximum timeout 500 msec.
 bool NetworkConnected(uint32_t timeout_ms) {
+  if (NetworkConnected()) return true;
 
 #ifdef USES_ESPEASY_NOW
   if (isESPEasy_now_only()) {
@@ -1025,6 +1110,14 @@ bool connectClient(WiFiClient& client, IPAddress ip, uint16_t port, uint32_t tim
     client.stop();
     return false;
   }
+#ifndef BUILD_NO_DEBUG
+  if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
+    addLog(LOG_LEVEL_DEBUG, strformat(
+      F("connectClient: '%s' port: %u"),
+      ip.toString().c_str(),
+      port));
+  }
+#endif
 
   // In case of domain name resolution error result can be negative.
   // https://github.com/esp8266/Arduino/blob/18f643c7e2d6a0da9d26ff2b14c94e6536ab78c1/libraries/Ethernet/src/Dns.cpp#L44
@@ -1034,6 +1127,15 @@ bool connectClient(WiFiClient& client, IPAddress ip, uint16_t port, uint32_t tim
   delay(0);
 
   if (!connected) {
+#ifndef BUILD_NO_DEBUG
+  if (loglevelActiveFor(LOG_LEVEL_DEBUG)) {
+    addLog(LOG_LEVEL_ERROR, strformat(
+      F("connectClient: connect failed to '%s' port: %u"),
+      ip.toString().c_str(),
+      port));
+  }
+#endif
+
     Scheduler.sendGratuitousARP_now();
     client.stop(); // Make sure to start over without some stale connection
   }
@@ -1561,7 +1663,14 @@ int http_authenticate(const String& logIdentifier,
     // Generate event with the HTTP return code
     // e.g. http#hostname=401
     eventQueue.addMove(strformat(F("http#%s=%d"), host.c_str(), httpCode));
+
+// ----This way to the custom response parser----------------
+#if RESPONSE_PARSER_SUPPORT
+    eventFromResponse(host, httpCode, uri, http);
+#endif
   }
+// -----------------------------------------------------------
+
 #ifndef BUILD_NO_DEBUG
   log_http_result(http, logIdentifier, host + ':' + port, HttpMethod, httpCode, EMPTY_STRING);
 #endif

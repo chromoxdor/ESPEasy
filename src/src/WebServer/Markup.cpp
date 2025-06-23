@@ -2,6 +2,7 @@
 #include "../WebServer/Markup.h"
 
 #include "../WebServer/HTML_wrappers.h"
+#include "../WebServer/Markup_Forms.h"
 
 #include "../CustomBuild/ESPEasyLimits.h"
 
@@ -15,174 +16,23 @@
 
 #include "../../ESPEasy_common.h"
 
-// ********************************************************************************
-// Add Selector
-// ********************************************************************************
-void addSelector(const __FlashStringHelper *id,
-                 int                        optionCount,
-                 const __FlashStringHelper *options[],
-                 const int                  indices[],
-                 const String               attr[],
-                 int                        selectedIndex,
-                 bool                       reloadonchange,
-                 bool                       enabled)
-{
-  addSelector(String(id), optionCount, options, indices, attr, selectedIndex, reloadonchange, enabled, F("wide"));
-}
-
-void addSelector(const String             & id,
-                 int                        optionCount,
-                 const __FlashStringHelper *options[],
-                 const int                  indices[],
-                 const String               attr[],
-                 int                        selectedIndex,
-                 bool                       reloadonchange,
-                 bool                       enabled)
-{
-  addSelector(id, optionCount, options, indices, attr, selectedIndex, reloadonchange, enabled, F("wide"));
-}
-
-void addSelector(const String& id,
-                 int           optionCount,
-                 const String  options[],
-                 const int     indices[],
-                 const String  attr[],
-                 int           selectedIndex,
-                 bool          reloadonchange,
-                 bool          enabled)
-{
-  addSelector(id, optionCount, options, indices, attr, selectedIndex, reloadonchange, enabled, F("wide"));
-}
-
-void addSelector(const String             & id,
-                 int                        optionCount,
-                 const __FlashStringHelper *options[],
-                 const int                  indices[],
-                 const String               attr[],
-                 int                        selectedIndex,
-                 bool                       reloadonchange,
-                 bool                       enabled,
-                 const __FlashStringHelper * classname
-                 #if FEATURE_TOOLTIPS
-                 , const String           & tooltip
-                 #endif // if FEATURE_TOOLTIPS
-                 )
-{
-  // FIXME TD-er Change bool    to disabled
-  if (reloadonchange)
-  {
-    addSelector_Head_reloadOnChange(id, classname, !enabled
-                                    #if FEATURE_TOOLTIPS
-                                    , tooltip
-                                    #endif // if FEATURE_TOOLTIPS
-                                    );
-  } else {
-    do_addSelector_Head(id, classname, EMPTY_STRING, !enabled
-                        #if FEATURE_TOOLTIPS
-                        , tooltip
-                        #endif // if FEATURE_TOOLTIPS
-                        );
-  }
-  addSelector_options(optionCount, options, indices, attr, selectedIndex);
-  addSelector_Foot();
-}
-
-void addSelector_reloadOnChange(
-                 const String& id,
-                 int           optionCount,
-                 const String  options[],
-                 const int     indices[],
-                 const String  attr[],
-                 int           selectedIndex,
-                 const String& onChangeCall,
-                 bool          enabled,
-                 const __FlashStringHelper * classname
-                 #if FEATURE_TOOLTIPS
-                 ,
-                 const String& tooltip
-                 #endif // if FEATURE_TOOLTIPS
-                 )
-{
-  // FIXME TD-er Change bool    to disabled
-  do_addSelector_Head(id, classname, onChangeCall, !enabled
-                      #if FEATURE_TOOLTIPS
-                      , tooltip
-                      #endif // if FEATURE_TOOLTIPS
-                      );
-  addSelector_options(optionCount, options, indices, attr, selectedIndex);
-  addSelector_Foot();
-}
+#ifdef ESP32
+# include "soc/soc_caps.h"
+#endif
 
 
-void addSelector(const String  & id,
-                 int             optionCount,
-                 const String    options[],
-                 const int       indices[],
-                 const String    attr[],
-                 int             selectedIndex,
-                 bool            reloadonchange,
-                 bool            enabled,
-                 const __FlashStringHelper * classname
-                 #if FEATURE_TOOLTIPS
-                 , const String& tooltip
-                 #endif // if FEATURE_TOOLTIPS
-                 )
+#if FEATURE_TOOLTIPS
+void addTooltip(const String& tooltip)
 {
-  // FIXME TD-er Change bool    to disabled
-  if (reloadonchange)
-  {
-    addSelector_Head_reloadOnChange(id, classname, !enabled
-                                    #if FEATURE_TOOLTIPS
-                                    , tooltip
-                                    #endif // if FEATURE_TOOLTIPS
-                                    );
-  } else {
-    do_addSelector_Head(id, classname, EMPTY_STRING, !enabled
-                        #if FEATURE_TOOLTIPS
-                        , tooltip
-                        #endif // if FEATURE_TOOLTIPS
-                        );
-  }
-  addSelector_options(optionCount, options, indices, attr, selectedIndex);
-  addSelector_Foot();
-}
-
-void addSelector_options(int optionCount, const __FlashStringHelper *options[], const int indices[], const String attr[], int selectedIndex)
-{
-  for (uint8_t x = 0; x < optionCount; ++x)
-  {
-    const int index = indices ? indices[x] : x;
-    addSelector_Item(
-      options[x], 
-      index, 
-      selectedIndex == index, 
-      false, 
-      attr ? attr[x] : EMPTY_STRING);
-    if ((x & 0x07) == 0) delay(0);
+  if (tooltip.length() > 0) {
+    addHtmlAttribute(F("title"), tooltip);
   }
 }
+#endif
 
-void addSelector_options(int optionCount, const String options[], const int indices[], const String attr[], int selectedIndex)
-{
-  for (uint8_t x = 0; x < optionCount; ++x)
-  {
-    const int index = indices ? indices[x] : x;
-    addSelector_Item(
-      options[x], 
-      index, 
-      selectedIndex == index, 
-      false, 
-      attr ? attr[x] : EMPTY_STRING);
-    if ((x & 0x07) == 0) delay(0);
-  }
-}
 
 void addSelector_Head(const String& id) {
-  do_addSelector_Head(id, F("wide"), EMPTY_STRING, false
-                      #if FEATURE_TOOLTIPS
-                      , F("")
-                      #endif // if FEATURE_TOOLTIPS
-                      );
+  do_addSelector_Head(id, F("wide"), EMPTY_STRING, false);
 }
 
 void addSelector_Head_reloadOnChange(const __FlashStringHelper * id) {
@@ -202,14 +52,21 @@ void addSelector_Head_reloadOnChange(const String& id,
                                      , const String& tooltip
                                      #endif // if FEATURE_TOOLTIPS
                                      ) {
-  do_addSelector_Head(id, classname, F("return dept_onchange(frmselect)"), disabled
-                      #if FEATURE_TOOLTIPS
-                      , tooltip
-                      #endif // if FEATURE_TOOLTIPS
-                      );
+  addSelector_Head_reloadOnChange(
+    id, 
+    classname, 
+    F("return dept_onchange(frmselect)"), 
+    disabled
+#if FEATURE_TOOLTIPS
+    , tooltip
+#endif // if FEATURE_TOOLTIPS
+  );
 }
 
-void addSelector_Head_reloadOnChange(const String& id, const __FlashStringHelper * classname, const String& onChangeCall, bool disabled
+void addSelector_Head_reloadOnChange(const String& id,
+                                     const __FlashStringHelper * classname, 
+                                     const String& onChangeCall, 
+                                     bool disabled
                                      #if FEATURE_TOOLTIPS
                                      , const String& tooltip
                                      #endif // if FEATURE_TOOLTIPS
@@ -234,10 +91,7 @@ void do_addSelector_Head(const String& id, const __FlashStringHelper * classname
   addHtmlAttribute(F("id"),    id);
 
   #if FEATURE_TOOLTIPS
-
-  if (tooltip.length() > 0) {
-    addHtmlAttribute(F("title"), tooltip);
-  }
+  addTooltip(tooltip);
   #endif // if FEATURE_TOOLTIPS
 
   if (disabled) {
@@ -267,6 +121,8 @@ void addPinSelector_Item(PinSelectPurpose purpose, const String& gpio_label, int
       #if FEATURE_SD
       bool includeSDCard = true;
       #endif // if FEATURE_SD
+      // bool includeStatusLed = true; // Added as place-holders, see below
+      // bool includeResetPin = true;
 
       switch (purpose) {
         case PinSelectPurpose::SPI:
@@ -303,9 +159,16 @@ void addPinSelector_Item(PinSelectPurpose purpose, const String& gpio_label, int
           }
           break;
 
-        case PinSelectPurpose::Generic_bidir:
         case PinSelectPurpose::I2C:
+#if FEATURE_I2C_MULTIPLE
+        case PinSelectPurpose::I2C_2:
+#if FEATURE_I2C_INTERFACE_3
+        case PinSelectPurpose::I2C_3:
+#endif
+#endif
           includeI2C = false;
+          // fallthrough
+        case PinSelectPurpose::Generic_bidir:
 
           if (!output || !input) {
             // SDA is obviously bidirectional.
@@ -336,6 +199,21 @@ void addPinSelector_Item(PinSelectPurpose purpose, const String& gpio_label, int
           }
           break;
         #endif
+        
+        case PinSelectPurpose::Status_led:
+          // includeStatusLed = false; // Placeholder, see below
+          if (!output) {
+            return;
+          }
+          break;
+
+        case PinSelectPurpose::Reset_pin:
+          // includeResetPin = false; // Placeholder, see below
+          if (!input) {
+            return;
+          }  
+          break;
+  
       }
 
       if (includeI2C && Settings.isI2C_pin(gpio)) {
@@ -350,6 +228,15 @@ void addPinSelector_Item(PinSelectPurpose purpose, const String& gpio_label, int
         disabled = true;
       }
 
+      // Not blocking these GPIO pins, as they may already be in dual-purpose use, just a place-holder
+      // if (includeStatusLed && (Settings.Pin_status_led == gpio)) {
+      //   disabled = true;
+      // }
+      
+      // if (includeResetPin && (Settings.Pin_Reset == gpio)) {
+      //   disabled = true;
+      // }
+  
   #if FEATURE_ETHERNET
 
       if (Settings.isEthernetPin(gpio) || (includeEthernet && Settings.isEthernetPinOptional(gpio))) {
@@ -417,20 +304,29 @@ void addSelector_Item(const String& option, int index, bool    selected, bool   
   addHtml(F("</option>"));
 }
 
-void addSelector_Foot()
+void addSelector_Foot(bool reloadonchange)
 {
   addHtml(F("</select>"));
+  if (reloadonchange) {
+#if FEATURE_TOOLTIPS
+    addHtml(F("<tt"));
+    addTooltip(F("Change will submit and reload page"));
+    addHtml(F(">&#128260;</tt>"));
+#else
+    addHtml(F("&#128260;"));
+#endif
+  }
 }
 
 void addUnit(const __FlashStringHelper *unit)
 {
-  addHtml(F(" ["));
-  addHtml(unit);
-  addHtml(']');
+  // Needed so we can check whether it is empty
+  addUnit(String(unit));
 }
 
 void addUnit(const String& unit)
 {
+  if (unit.isEmpty()) return;
   addHtml(F(" ["));
   addHtml(unit);
   addHtml(']');
@@ -438,10 +334,76 @@ void addUnit(const String& unit)
 
 void addUnit(char unit)
 {
+  if (unit == '\0') return;
   addHtml(F(" ["));
   addHtml(unit);
   addHtml(']');
 }
+
+#if FEATURE_TASKVALUE_UNIT_OF_MEASURE
+const char unit_of_measure_list[] PROGMEM = // *** DO NOT CHANGE ORDER, SAVED IN TASK SETTINGS! ***
+ "|" // 0 = Empty/none
+ "°C|°F|K|" // 1..3
+ "%|" // 4
+ "Pa|hPa|bar|mbar|inHg|psi|" // 5..10
+ "W|kW|" // 11..12
+ "V|" // 13
+ "Wh|kWh|" // 14..15
+ "A|VA|" // 16..17
+ "mm|cm|m|km|" // 18..21
+ "L|mL|m³|ft³|" // 22..25
+ "m³/h|ft³/h|" // 26..27
+ "lx|" // 28
+ "UV index|" // 29
+ "µg/m³|mg/m³|p/m³|ppm|ppb|" // 30..34
+ "°|" // 35
+ "€|$|¢|" // 36..38
+ "μs|ms|s|min|h|d|w|m|y|" // 39..47
+ "in|ft|yd|mi|" // 48..51
+ "Hz|GHz|" // 52..53
+ "gal|fl. oz|" // 54..55
+ "m²|" // 56
+ "g|kg|mg|µg|" // 57..60
+ "oz|lb|" // 61..62
+ "µS/cm|" // 63
+ "W/m²|" // 64
+ "mm/h|" // 65
+ "mm/s|in/s|m/s|in/h|km/h|mph|" // 66..71
+ "db|dBm|" // 72..73
+ "bit|kbit|Mbit|Gbit|B|kB|MB|GB|TB|PB|EB|ZB|YB|KiB|MiB|GiB|TiB|PiB|EiB|ZiB|YiB|" // 74..94
+ "bit/s|kbit/s|Mbit/s|Gbit/s|B/s|kB/s|MB/s|GB/s|KiB/s|MiB/s|GiB/s|" // 95..105
+ ; // *** DO NOT CHANGE ORDER, SAVED IN TASK SETTINGS! ***
+
+String toUnitOfMeasureName(const uint32_t unitOfMeasureIndex,
+                           const String & defUoM) {
+  char tmp[10]{};
+
+  String result(GetTextIndexed(tmp, sizeof(tmp), unitOfMeasureIndex, unit_of_measure_list));
+
+  return result.isEmpty() ? defUoM : result;
+}
+
+
+void addUnitOfMeasureSelector(const String& id,
+                              const uint8_t unitOfMeasure) {
+  std::vector<String> analogDeviceClasses;
+  int unitOfMeasureIndex   = 0;
+  String devClassName = toUnitOfMeasureName(unitOfMeasureIndex);
+
+  while (!devClassName.isEmpty() || (unitOfMeasureIndex == 0)) {
+    analogDeviceClasses.push_back(devClassName);
+    ++unitOfMeasureIndex;
+    devClassName = toUnitOfMeasureName(unitOfMeasureIndex);
+  }
+  const FormSelectorOptions deviceClass(
+    unitOfMeasureIndex,
+    &analogDeviceClasses[0]);
+
+  deviceClass.addSelector(
+    id,
+    unitOfMeasure);
+}
+#endif // if FEATURE_TASKVALUE_UNIT_OF_MEASURE
 
 void addRowLabel_tr_id(const __FlashStringHelper *label, const __FlashStringHelper *id)
 {
@@ -517,6 +479,7 @@ void addRowLabel(LabelType::Enum label) {
 void addRowLabelValue(LabelType::Enum label) {
   addRowLabel(getLabel(label));
   addHtml(getValue(label));
+  addUnit(getFormUnit(label));
 }
 
 void addRowLabelValues(const LabelType::Enum labels[]) {
@@ -537,6 +500,7 @@ void addRowLabelValues(const LabelType::Enum labels[]) {
 void addRowLabelValue_copy(LabelType::Enum label) {
   addRowLabel_copy(getLabel(label));
   addHtml(getValue(label));
+  addUnit(getFormUnit(label));
 }
 
 // ********************************************************************************
@@ -641,15 +605,14 @@ void addCheckBox(const String& id, bool    checked, bool disabled
   }
 
   if (disabled) { addDisabled(); }
-  addHtml(F("><span class='checkmark"));
+  addHtml(F("><span "));
+  addHtmlAttribute(F("id"), concat(F("cs"), id)); // cs=checkbox span
+  addHtml(F(" class='checkmark"));
 
   if (disabled) { addDisabled(); }
   addHtml('\'');
   #if FEATURE_TOOLTIPS
-
-  if (tooltip.length() > 0) {
-    addHtmlAttribute(F("title"), tooltip);
-  }
+  addTooltip(tooltip);
   #endif // if FEATURE_TOOLTIPS
   addHtml(F("></span></label>"));
 }
@@ -680,10 +643,7 @@ void addNumericBox(const String& id, int value, int min, int max
   addHtmlAttribute(F("id"),    id);
 
   #if FEATURE_TOOLTIPS
-
-  if (tooltip.length() > 0) {
-    addHtmlAttribute(F("title"), tooltip);
-  }
+  addTooltip(tooltip);
   #endif // if FEATURE_TOOLTIPS
 
   if (disabled) {
@@ -748,11 +708,7 @@ void addFloatNumberBox(const String& id, float value, float min, float max, unsi
   addHtmlFloat(value, nrDecimals);
 
   #if FEATURE_TOOLTIPS
-
-  if (!tooltip.isEmpty()) {
-    addHtml(strformat(
-      F("title='%s' "), tooltip.c_str()));
-  }
+  addTooltip(tooltip);
   #endif // if FEATURE_TOOLTIPS
   addHtml('>');
 }
@@ -760,6 +716,30 @@ void addFloatNumberBox(const String& id, float value, float min, float max, unsi
 // ********************************************************************************
 // Add Textbox
 // ********************************************************************************
+void addTextBox(const __FlashStringHelper * id,
+                const String& value,
+                int           maxlength,
+                const __FlashStringHelper * classname)
+{
+  addTextBox(String(id), value, maxlength, 
+             false, // readonly
+             false, // required
+             EMPTY_STRING, // pattern
+             classname);
+}
+
+void addTextBox(const String& id,
+                const String& value,
+                int           maxlength,
+                const __FlashStringHelper * classname)
+{
+  addTextBox(id, value, maxlength, 
+             false, // readonly
+             false, // required
+             EMPTY_STRING, // pattern
+             classname);
+}
+
 void addTextBox(const __FlashStringHelper * id, const String&  value, int maxlength, bool readonly, bool required, const String& pattern) {
   addTextBox(id, value, maxlength, readonly, required, pattern, F("wide"));
 }
@@ -808,10 +788,7 @@ void addTextBox(const String  & id,
   }
 
   #if FEATURE_TOOLTIPS
-
-  if (tooltip.length() > 0) {
-    addHtmlAttribute(F("title"), tooltip);
-  }
+  addTooltip(tooltip);
   #endif // if FEATURE_TOOLTIPS
   addHtml('>');
 }
@@ -833,16 +810,23 @@ void addTextArea(const String  & id,
                  #endif // if FEATURE_TOOLTIPS
                  )
 {
+  if (rows < 0) {
+    rows = count_newlines(value) + 1;
+  }
   addHtml(F("<textarea "));
-  addHtmlAttribute(F("class"),     F("wide"));
+//  addHtmlAttribute(F("class"),     F("wide"));
   addHtmlAttribute(F("type"),      F("text"));
   addHtmlAttribute(F("name"),      id);
   addHtmlAttribute(F("id"),        id);
   if (maxlength > 0) {
     addHtmlAttribute(F("maxlength"), maxlength);
   }
-  addHtmlAttribute(F("rows"),      rows);
-  addHtmlAttribute(F("cols"),      columns);
+  if (rows > 0) {
+    addHtmlAttribute(F("rows"),      rows);
+  }
+  if (columns > 0) {
+    addHtmlAttribute(F("cols"),      columns);
+  }
 
   if (readonly) {
     addHtml(F(" readonly "));
@@ -853,10 +837,7 @@ void addTextArea(const String  & id,
   }
 
   #if FEATURE_TOOLTIPS
-
-  if (tooltip.length() > 0) {
-    addHtmlAttribute(F("title"), tooltip);
-  }
+  addTooltip(tooltip);
   #endif // if FEATURE_TOOLTIPS
   addHtml('>');
   addHtml(value);
@@ -963,9 +944,16 @@ void addPinSelect(PinSelectPurpose purpose, const String& id,  int choice)
     if (UsableGPIO || (i == 0)) {
       addPinSelector_Item(
         purpose,
+        #ifdef ESP32
         concat(
-          createGPIO_label(gpio, pinnr, input, output, warning),
-          getConflictingUse_wrapped(gpio, purpose)),
+        #endif // ifdef ESP32
+          concat(
+            createGPIO_label(gpio, pinnr, input, output, warning),
+            getConflictingUse_wrapped(gpio, purpose)),
+        #ifdef ESP32
+            isPSRAMInterfacePin(gpio) ? getConflictingUse_wrapped(gpio, purpose, true) : F("")
+        ),
+        #endif // ifdef ESP32
         gpio,
         choice == gpio);
 
@@ -977,6 +965,7 @@ void addPinSelect(PinSelectPurpose purpose, const String& id,  int choice)
 }
 
 #ifdef ESP32
+#if SOC_ADC_SUPPORTED
 void addADC_PinSelect(AdcPinSelectPurpose purpose, const String& id,  int choice)
 {
   addSelector_Head(id);
@@ -984,6 +973,7 @@ void addADC_PinSelect(AdcPinSelectPurpose purpose, const String& id,  int choice
   // At i == 0 && gpio == -1, add the "Hall Effect" option first
   int i    = 0;
   int gpio = -1;
+  bool hasADC2 = false;
 
   if (
 #if HAS_HALL_EFFECT_SENSOR
@@ -1001,6 +991,7 @@ void addADC_PinSelect(AdcPinSelectPurpose purpose, const String& id,  int choice
     int  pinnr = -1;
     bool input, output, warning;
 
+#if SOC_TOUCH_SENSOR_SUPPORTED
     if (purpose == AdcPinSelectPurpose::TouchOnly) {
       // For touch only list, sort based on touch number
       // Default sort is on GPIO number.
@@ -1008,6 +999,9 @@ void addADC_PinSelect(AdcPinSelectPurpose purpose, const String& id,  int choice
     } else {
       ++gpio;
     }
+#else
+    ++gpio;
+#endif
 
     if (getGpioInfo(gpio, pinnr, input, output, warning)) {
       int adc, ch, t;
@@ -1018,6 +1012,9 @@ void addADC_PinSelect(AdcPinSelectPurpose purpose, const String& id,  int choice
           gpio_label = formatGpioName_ADC(gpio);
 
           if (adc != 0) {
+            if (adc == 2) {
+              hasADC2 = true;
+            }
             gpio_label += F(" / ");
             gpio_label += createGPIO_label(gpio, pinnr, input, output, warning);
             gpio_label += getConflictingUse_wrapped(gpio);
@@ -1033,8 +1030,13 @@ void addADC_PinSelect(AdcPinSelectPurpose purpose, const String& id,  int choice
     ++i;
   }
   addSelector_Foot();
+  if (hasADC2) {
+    addFormNote(F("Do not use ADC2 pins with WiFi active"));
+  }
 }
+#endif
 
+#if SOC_DAC_SUPPORTED
 void addDAC_PinSelect(const String& id,  int choice)
 {
   addSelector_Head(id);
@@ -1074,5 +1076,6 @@ void addDAC_PinSelect(const String& id,  int choice)
   }
   addSelector_Foot();
 }
+#endif
 
 #endif // ifdef ESP32

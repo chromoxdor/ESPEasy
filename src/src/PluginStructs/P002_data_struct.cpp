@@ -1,6 +1,7 @@
 #include "../PluginStructs/P002_data_struct.h"
 
 #ifdef USES_P002
+#if SOC_ADC_SUPPORTED || defined(ESP8266)
 
 # include "../Globals/RulesCalculate.h"
 
@@ -30,13 +31,10 @@ void P002_data_struct::init(struct EventStruct *event)
   _pin_analogRead        = CONFIG_PIN1;
   _useFactoryCalibration = useFactoryCalibration(event);
   _attenuation           = getAttenuation(event);
-  int channel{};
-  const int adc = getADC_num_for_gpio(_pin_analogRead, channel);
 
-  if ((adc == 1) || (adc == 2)) {
-    analogSetPinAttenuation(_pin_analogRead, static_cast<adc_attenuation_t>(_attenuation));
-  }
-
+  // Initialize attenuation and perform read
+  // This way there is less chance of a big difference between 1st read and any next reads
+  analog_read();
   # endif // ifdef ESP32
 
   if (P002_CALIBRATION_ENABLED) {
@@ -101,7 +99,7 @@ void P002_data_struct::webformLoad_2p_calibPoint(
   float                      value) const
 {
   addRowLabel_tr_id(label, id_point);
-  addTextBox(id_point, String(point), 10, false, false, EMPTY_STRING, F("number"));
+  addTextBox(id_point, String(point), 10, F("number"));
 
 # ifdef ESP32
 
@@ -113,7 +111,7 @@ void P002_data_struct::webformLoad_2p_calibPoint(
   html_add_estimate_symbol();
   const unsigned int display_nrDecimals = _nrDecimals > 3 ? _nrDecimals : 3;
 
-  addTextBox(id_value, toString(value, display_nrDecimals), 10, false, false, EMPTY_STRING, F("number"));
+  addTextBox(id_value, toString(value, display_nrDecimals), 10, F("number"));
 }
 
 void P002_data_struct::webformLoad(struct EventStruct *event)
@@ -138,8 +136,6 @@ void P002_data_struct::webformLoad(struct EventStruct *event)
   addADC_PinSelect(AdcPinSelectPurpose::ADC_Touch,            F("taskdevicepin1"), CONFIG_PIN1);
   #  endif // if HAS_HALL_EFFECT_SENSOR
 
-  addFormNote(F("Do not use ADC2 pins with WiFi active"));
-
   {
     const __FlashStringHelper *outputOptions[] = {
       F("12 dB"),
@@ -154,7 +150,8 @@ void P002_data_struct::webformLoad(struct EventStruct *event)
       P002_ADC_0db
     };
     constexpr int nrOptions = NR_ELEMENTS(outputOptionValues);
-    addFormSelector(F("Attenuation"), F("attn"), nrOptions, outputOptions, outputOptionValues, P002_ATTENUATION);
+    const FormSelectorOptions selector(nrOptions, outputOptions, outputOptionValues);
+    selector.addFormSelector(F("Attenuation"), F("attn"), P002_ATTENUATION);
   }
 
 # endif // ifdef ESP32
@@ -174,8 +171,9 @@ void P002_data_struct::webformLoad(struct EventStruct *event)
       , P002_USE_BINNING
 # endif // ifndef LIMIT_BUILD_SIZE
     };
-    const int nrOptions = NR_ELEMENTS(outputOptionValues);
-    addFormSelector(F("Oversampling"), F("oversampling"), nrOptions, outputOptions, outputOptionValues, P002_OVERSAMPLING);
+    constexpr int nrOptions = NR_ELEMENTS(outputOptionValues);
+    const FormSelectorOptions selector(nrOptions, outputOptions, outputOptionValues);
+    selector.addFormSelector(F("Oversampling"), F("oversampling"), P002_OVERSAMPLING);
   }
 
 # ifdef ESP32
@@ -189,7 +187,15 @@ void P002_data_struct::webformLoad(struct EventStruct *event)
     #  if FEATURE_CHART_JS
     webformLoad_calibrationCurve(event);
     #  endif // if FEATURE_CHART_JS
-    formatADC_statistics(F("Current ADC to mV"), raw_value);
+    # ifdef ESP32
+    if (_useFactoryCalibration) {
+      formatADC_statistics(F("Current Voltage"), raw_value);
+    } else {
+      formatADC_statistics(F("Current ADC raw value"), raw_value);
+    }
+    #else
+    formatADC_statistics(F("Current ADC raw value"), raw_value);
+    #endif
 
     for (size_t att = 0; att < P002_ADC_ATTEN_MAX; ++att) {
       const adc_atten_t attenuation = static_cast<adc_atten_t>(att);
@@ -197,9 +203,7 @@ void P002_data_struct::webformLoad(struct EventStruct *event)
       const int   high              = getADC_factory_calibrated_max(attenuation);
       const float step              = static_cast<float>(high - low) / MAX_ADC_VALUE;
 
-      String rowlabel = F("Attenuation @");
-      rowlabel += AttenuationToString(attenuation);
-      addRowLabel(rowlabel);
+      addRowLabel(concat(F("Attenuation @"), AttenuationToString(attenuation)));
       addHtml(F("Range / Step: "));
       addHtmlInt(low);
       addHtml(F(" ... "));
@@ -316,9 +320,6 @@ void P002_data_struct::webformLoad(struct EventStruct *event)
                  _nrDecimals,
                  true) : EMPTY_STRING,
                0,
-               false,
-               false,
-               EMPTY_STRING,
                F("query-input widenumber"));
 
     ++line_nr;
@@ -334,6 +335,10 @@ bool P002_data_struct::webformLoad_show_stats(struct EventStruct *event)
 {
   bool somethingAdded = false;
 
+  if (_plugin_stats_array != nullptr) {
+    somethingAdded = _plugin_stats_array->webformLoad_show_stats(event, false);
+  }
+
   const PluginStats *stats = getPluginStats(0);
 
   if (stats != nullptr) {
@@ -342,9 +347,19 @@ bool P002_data_struct::webformLoad_show_stats(struct EventStruct *event)
     if (stats->webformLoad_show_stdev(event)) { somethingAdded = true; }
 
     if (stats->hasPeaks()) {
-      formatADC_statistics(F("ADC Peak Low"),  stats->getPeakLow(),  true);
-      formatADC_statistics(F("ADC Peak High"), stats->getPeakHigh(), true);
-      somethingAdded = true;
+      float floatvalue_low, floatvalue_high;
+
+      if (stats->webformLoad_show_peaks(
+            event,
+            stats->getLabel(),
+            formatADC_statistics_to_str(stats->getPeakLow(),  floatvalue_low,  true),
+            formatADC_statistics_to_str(stats->getPeakHigh(), floatvalue_high, true),
+            false))
+      {
+        addRowLabel(concat(stats->getLabel(),  F(" Peak-to-peak")));
+        addHtmlFloat(floatvalue_high - floatvalue_low, _nrDecimals);
+        somethingAdded = true;
+      }
     }
   }
   return somethingAdded;
@@ -530,24 +545,37 @@ void P002_data_struct::webformLoad_2pt_calibrationCurve(struct EventStruct *even
 void P002_data_struct::formatADC_statistics(const __FlashStringHelper *label, int raw, bool includeOutputValue) const
 {
   addRowLabel(label);
-  addHtmlInt(raw);
+  float float_value{};
 
-  float float_value = raw;
+  addHtml(formatADC_statistics_to_str(raw, float_value, includeOutputValue));
+}
+
+String P002_data_struct::formatADC_statistics_to_str(
+  int    raw,
+  float& float_value,
+  bool   includeOutputValue) const
+{
+  String res;
+
+  float_value = raw;
 
 # ifdef ESP32
 
   if (_useFactoryCalibration) {
     float_value = applyADCFactoryCalibration(raw, _attenuation);
-
-    html_add_estimate_symbol();
-    addHtmlFloat(float_value, _nrDecimals);
-    addUnit(F("mV"));
+    res = strformat(
+      F("%s [mV]  &#8793; %d [ADC]"),
+      toString(float_value, _nrDecimals).c_str(),
+      raw);
+  } else {
+    res += raw;
   }
+#else
+  res += raw;
 # endif // ifdef ESP32
 
   if (includeOutputValue) {
-    addHtml(' ');
-    addHtml(F("&rarr; "));
+    res        += F(" &rarr; ");
     float_value =  applyCalibration(float_value);
 
 # ifndef LIMIT_BUILD_SIZE
@@ -568,8 +596,10 @@ void P002_data_struct::formatADC_statistics(const __FlashStringHelper *label, in
       }
     }
 # endif // ifndef LIMIT_BUILD_SIZE
-    addHtmlFloat(float_value, _nrDecimals);
+    res += toString(float_value, _nrDecimals);
   }
+
+  return res;
 }
 
 void P002_data_struct::format_2point_calib_statistics(const __FlashStringHelper *label, int raw, float float_value) const
@@ -806,7 +836,7 @@ String P002_data_struct::webformSave(struct EventStruct *event)
 void P002_data_struct::takeSample()
 {
   if (_sampleMode == P002_USE_CURENT_SAMPLE) { return; }
-  int raw = espeasy_analogRead(_pin_analogRead);
+  const int raw = analog_read();
 
 # if FEATURE_PLUGIN_STATS
   PluginStats *stats = getPluginStats(0);
@@ -859,7 +889,7 @@ bool P002_data_struct::getValue(float& float_value,
     return false;
   }
 
-  raw_value = espeasy_analogRead(_pin_analogRead);
+  raw_value = analog_read();
 # if FEATURE_PLUGIN_STATS
 
   PluginStats *stats = getPluginStats(0);
@@ -1081,6 +1111,10 @@ float P002_data_struct::getCurrentValue(struct EventStruct *event, int& raw_valu
   # endif // ifdef ESP8266
   # ifdef ESP32
   const int pin = CONFIG_PIN1;
+
+  auto att = getAttenuation(event);
+
+  analogSetPinAttenuation(pin, static_cast<adc_attenuation_t>(att));
   # endif // ifdef ESP32
 
   raw_value = espeasy_analogRead(pin);
@@ -1088,7 +1122,7 @@ float P002_data_struct::getCurrentValue(struct EventStruct *event, int& raw_valu
   # ifdef ESP32
 
   if (useFactoryCalibration(event)) {
-    return applyADCFactoryCalibration(raw_value, getAttenuation(event));
+    return applyADCFactoryCalibration(raw_value, att);
   }
   # endif // ifdef ESP32
 
@@ -1256,4 +1290,18 @@ bool P002_data_struct::plugin_set_config(struct EventStruct *event,
   return success;
 }
 
+int P002_data_struct::analog_read() const {
+#ifdef ESP32
+  int channel{};
+  const int adc = getADC_num_for_gpio(_pin_analogRead, channel);
+
+  if ((adc == 1) || (adc == 2)) {
+    analogSetPinAttenuation(_pin_analogRead, static_cast<adc_attenuation_t>(_attenuation));
+  }
+#endif
+
+  return espeasy_analogRead(_pin_analogRead);
+}
+
+#endif
 #endif // ifdef USES_P002

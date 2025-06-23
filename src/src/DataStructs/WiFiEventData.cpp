@@ -3,6 +3,7 @@
 #include "../ESPEasyCore/ESPEasy_Log.h"
 
 #include "../Globals/RTC.h"
+#include "../Globals/Settings.h"
 #include "../Globals/WiFi_AP_Candidates.h"
 
 #include "../Helpers/ESPEasy_Storage.h"
@@ -12,6 +13,19 @@
 #define WIFI_RECONNECT_WAIT                  30000  // in milliSeconds
 
 #define CONNECT_TIMEOUT_MAX                  4000   // in milliSeconds
+
+
+#if FEATURE_USE_IPV6
+#include <esp_netif.h>
+
+// -----------------------------------------------------------------------------------------------------------------------
+// ---------------------------------------------------- Private functions ------------------------------------------------
+// -----------------------------------------------------------------------------------------------------------------------
+
+esp_netif_t* get_esp_interface_netif(esp_interface_t interface);
+#endif
+
+
 
 bool WiFiEventData_t::WiFiConnectAllowed() const {
   if (WiFi.status() == WL_IDLE_STATUS) {
@@ -127,6 +141,10 @@ void WiFiEventData_t::setWiFiDisconnected() {
   wifiStatus            = ESPEASY_WIFI_DISCONNECTED;
   last_wifi_connect_attempt_moment.clear();
   wifiConnectInProgress = false;
+#if FEATURE_ESPEASY_P2P
+  updateUDPport(true);
+#endif  
+
 }
 
 void WiFiEventData_t::setWiFiGotIP() {
@@ -155,6 +173,10 @@ void WiFiEventData_t::setWiFiServicesInitialized() {
     wifiConnectAttemptNeeded = false;
     dns0_cache = WiFi.dnsIP(0);
     dns1_cache = WiFi.dnsIP(1);
+
+#if FEATURE_ESPEASY_P2P
+    updateUDPport(false);
+#endif  
   }
 }
 
@@ -222,6 +244,11 @@ void WiFiEventData_t::markConnected(const String& ssid, const uint8_t bssid[6], 
       RTC.lastBSSID[i] = bssid[i];
     }
   }
+#if FEATURE_USE_IPV6
+  if (Settings.EnableIPv6()) {
+    WiFi.enableIPv6(true);
+  }
+#endif
 }
 
 void WiFiEventData_t::markConnectedAPmode(const uint8_t mac[6]) {

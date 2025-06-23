@@ -53,11 +53,14 @@ else:
 #    "-DUSES_P107",  # SI1145 UV index
 
     "-DUSES_P146",  # Cache Reader
+    "-DUSES_P169",  # AS3935 Lightning Detector 
 
     "-DUSES_C016",  # Cache Controller
 #    "-DUSES_C018",  # TTN/RN2483
 #   "-DUSES_C015",  # Blynk
 
+    "-DFEATURE_MQTT_TLS=0",
+    "-DFEATURE_EMAIL_TLS=0",
 #    "-DFEATURE_MDNS=1",
 #    "-DFEATURE_SD=1",
     "-DFEATURE_EXT_RTC=1",
@@ -81,7 +84,7 @@ else:
 
 my_flags = env.ParseFlags(env['BUILD_FLAGS'])
 my_defines = my_flags.get("CPPDEFINES")
-env.Append(BUILD_FLAGS=custom_defines)
+env.Append(CXXFLAGS=custom_defines)
 #defines = {k: v for (k, v) in my_defines}
 
 print("\u001b[32m Custom PIO configuration check \u001b[0m")

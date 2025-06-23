@@ -7,6 +7,7 @@
 #include "../PluginStructs/P145_data_struct.h"
 
 #ifdef USES_P145
+#if SOC_ADC_SUPPORTED || defined(ESP8266)
 
 // Enable testing 
 //#define P145_TEST
@@ -210,7 +211,7 @@ const P145_SENSORDEF sensorDefs[] PROGMEM
   }
 };
 /// @brief The number of types stored in the sensorDefs[] table
-constexpr const int nbrOfTypes = (int)(sizeof(sensorDefs) / sizeof(struct P145_SENSORDEF));
+constexpr const int nbrOfTypes = NR_ELEMENTS(sensorDefs);
 
 // Digital ouput value to swicth heater ON/OFF 
 #define P145_HEATER_OFF  LOW
@@ -306,7 +307,7 @@ float P145_data_struct::getRZero(float rSensor) const
 /*****************************************************************************/
 float P145_data_struct::getCorrectedRZero(float rSensor, float temperature, float humidity) const
 {
-  float c = getTempHumCorrection(temperature, humidity);
+  const float c = getTempHumCorrection(temperature, humidity);
   return getRZero(rSensor/c);
 }
 
@@ -353,7 +354,7 @@ float P145_data_struct::getPPM(float rSensor)
 /*****************************************************************************/
 float P145_data_struct::getCorrectedPPM(float rSensor, float temperature, float humidity)
 {
-  float c = getTempHumCorrection(temperature, humidity);
+  const float c = getTempHumCorrection(temperature, humidity);
   return getPPM(rSensor/c);
 }
 
@@ -853,4 +854,6 @@ void P145_data_struct::heaterControl(void)
   }
 #endif  // P145_DEBUG
 }
+
+#endif
 #endif // USES_P145

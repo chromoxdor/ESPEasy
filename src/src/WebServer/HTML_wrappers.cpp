@@ -281,9 +281,26 @@ void html_add_ChartJS_script() {
   // - Select the chart.js file (may be called chart.umd.min.js) and copy the url
   // - Replace the url in below script src element, keeping the quotes
   #ifndef CDN_URL_CHART_JS
-    #define CDN_URL_CHART_JS "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
+    #define CDN_URL_CHART_JS "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
   #endif // ifndef CDN_URL_CHART_JS
+
+  #ifndef CDN_URL_CHART_JS_ADAPTER_DATE
+    #define CDN_URL_CHART_JS_ADAPTER_DATE "https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"
+  #endif
+
+  #ifndef CDN_URL_CHART_JS_HAMMERJS
+    #define CDN_URL_CHART_JS_HAMMERJS "https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"
+  #endif
+
+  #ifndef CDN_URL_CHART_JS_PLUGIN_ZOOM
+    #define CDN_URL_CHART_JS_PLUGIN_ZOOM "https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"
+  #endif
+
+
   addHtml(F("<script src=\"" CDN_URL_CHART_JS "\"></script>"));
+  addHtml(F("<script src=\"" CDN_URL_CHART_JS_ADAPTER_DATE "\"></script>"));
+  addHtml(F("<script src=\"" CDN_URL_CHART_JS_HAMMERJS "\"></script>"));
+  addHtml(F("<script src=\"" CDN_URL_CHART_JS_PLUGIN_ZOOM "\"></script>"));
 }
 #endif // if FEATURE_CHART_JS
 
@@ -424,10 +441,30 @@ void addHtmlFloat(const float& value, unsigned int nrDecimals) {
   addHtml(toString(value, nrDecimals));
 }
 
+void addHtmlFloat_NaN_toNull(const float& value, unsigned int nrDecimals) {
+  String res;
+  if (toValidString(res, value, nrDecimals)) {
+    addHtml(res);
+  } else {
+    addHtml(F("null"));
+  }
+}
+
+
 #if FEATURE_USE_DOUBLE_AS_ESPEASY_RULES_FLOAT_TYPE
 void addHtmlFloat(const double& value, unsigned int nrDecimals) {
   addHtml(doubleToString(value, nrDecimals));
 }
+
+void addHtmlFloat_NaN_toNull(const double& value, unsigned int nrDecimals) {
+  String res;
+  if (doubleToValidString(res, value, nrDecimals)) {
+    addHtml(res);
+  } else {
+    addHtml(F("null"));
+  }
+}
+
 #endif
 
 
@@ -479,17 +516,17 @@ void addHtmlAttribute(const __FlashStringHelper * label, const __FlashStringHelp
 void addHtmlAttribute(const __FlashStringHelper * label, const String& value) {
   addHtml(' ');
   addHtml(label);
-  addHtml(F("='"));
+  addHtml('=', '\'');
   addEncodedHtml(value);
-  addHtml(F("' "));
+  addHtml('\'', ' ');
 }
 
 void addHtmlAttribute(const String& label, const String& value) {
   addHtml(' ');
   addHtml(label);
-  addHtml(F("='"));
+  addHtml('=', '\'');
   addEncodedHtml(value);
-  addHtml(F("' "));
+  addHtml('\'', ' ');
 }
 
 void addDisabled() {

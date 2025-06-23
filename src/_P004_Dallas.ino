@@ -8,6 +8,9 @@
 // Maxim Integrated (ex Dallas) DS18B20 datasheet : https://datasheets.maximintegrated.com/en/ds/DS18B20.pdf
 
 /** Changelog:
+ * 2024-05-11 tonhuisman: Add Get Config Value support for sensor statistics: Read success, Read retry, Read failed,
+ *                        Read init failed, Resolution and Address (formatted)
+ *                        [<taskname>#sensorstats,<sensorindex>,success|retry|failed|initfailed|resolution|address]
  * 2023-04-18 tonhuisman: Add warning on statistics section for Parasite Powered sensors, as these are unsupported.
  * 2023-04-17 tonhuisman: Use actual sensor resolution, even when using multiple sensors with different resolutions
  * 2023-04-16 tonhuisman: Rename from DS18b20 to 1-Wire Temperature, as it supports several 1-Wire temperature sensors
@@ -48,19 +51,17 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
   {
     case PLUGIN_DEVICE_ADD:
     {
-      Device[++deviceCount].Number           = PLUGIN_ID_004;
-      Device[deviceCount].Type               = DEVICE_TYPE_DUAL;
-      Device[deviceCount].VType              = Sensor_VType::SENSOR_TYPE_SINGLE;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false;
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = true;
-      Device[deviceCount].ValueCount         = 1;
-      Device[deviceCount].SendDataOption     = true;
-      Device[deviceCount].TimerOption        = true;
-      Device[deviceCount].GlobalSyncOption   = true;
-      Device[deviceCount].OutputDataType     = Output_Data_type_t::Simple;
-      Device[deviceCount].PluginStats        = true;
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_004;
+      dev.Type           = DEVICE_TYPE_DUAL;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_SINGLE;
+      dev.FormulaOption  = true;
+      dev.ValueCount     = 1;
+      dev.SendDataOption = true;
+      dev.TimerOption    = true;
+      dev.OutputDataType = Output_Data_type_t::Simple;
+      dev.PluginStats    = true;
+      dev.setPin2Direction(gpio_direction::gpio_output);
       break;
     }
 
@@ -137,19 +138,27 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
           int resolutionChoice = P004_RESOLUTION;
 
           if ((resolutionChoice < 9) || (resolutionChoice > 12)) { resolutionChoice = activeRes; }
-          const __FlashStringHelper *resultsOptions[4] = { F("9"), F("10"), F("11"), F("12") };
-          int resultsOptionValues[4]                   = { 9, 10, 11, 12 };
-          addFormSelector(F("Device Resolution"), F("res"), 4, resultsOptions, resultsOptionValues, resolutionChoice);
-          addHtml(F(" Bit"));
+          constexpr int resultsOptionValues[] { 9, 10, 11, 12 };
+
+          const FormSelectorOptions selector(
+            NR_ELEMENTS(resultsOptionValues),
+            resultsOptionValues);
+          selector.addFormSelector(F("Device Resolution"), F("res"), resolutionChoice);
+          addUnit(F("bit"));
         }
 
         {
           // Value in case of Error
-          const __FlashStringHelper *resultsOptions[5] = { F("NaN"), F("-127"), F("0"), F("125"), F("Ignore") };
-          int resultsOptionValues[5]                   =
-          { P004_ERROR_NAN, P004_ERROR_MIN_RANGE, P004_ERROR_ZERO, P004_ERROR_MAX_RANGE, P004_ERROR_IGNORE };
-          addFormSelector(F("Error State Value"), F("err"), 5, resultsOptions, resultsOptionValues, P004_ERROR_STATE_OUTPUT);
+          const __FlashStringHelper *resultsOptions[] = { F("NaN"), F("-127"), F("0"), F("125"), F("Ignore") };
+          constexpr int resultsOptionValues[] { P004_ERROR_NAN, P004_ERROR_MIN_RANGE, P004_ERROR_ZERO, P004_ERROR_MAX_RANGE,
+                                                P004_ERROR_IGNORE };
+
+          const FormSelectorOptions selector(
+            NR_ELEMENTS(resultsOptionValues),
+            resultsOptions, resultsOptionValues);
+          selector.addFormSelector(F("Error State Value"), F("err"), P004_ERROR_STATE_OUTPUT);
         }
+#ifndef LIMIT_BUILD_SIZE
         addFormNote(F("External pull up resistor is needed, see docs!"));
 
         {
@@ -157,16 +166,30 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
             static_cast<P004_data_struct *>(getPluginTaskData(event->TaskIndex));
 
           if (nullptr != P004_data) {
-            for (uint8_t i = 0; i < valueCount; ++i) {
-              if (i == 0) {
-                addFormSubHeader(F("Statistics"));
-              } else {
-                addFormSeparator(2);
+            addFormSubHeader(F("Statistics"));
+            addRowLabel(F("Data pin Rise Time"));
+            const int riseTime = P004_data->measure_rise_time();
+            if (riseTime == 0) {
+              addHtml(F("< 1"));
+            } else {
+              if (riseTime >= 15) {
+                addHtml('>');
               }
+              addHtmlInt(riseTime);
+            }
+            addUnit(F("usec"));
+            if (riseTime > 6) {
+              addHtml(F("&nbsp;"));
+              addEnabled(false);
+              addHtml(F("&nbsp;Too Slow! Reduce pull-up resistance"));
+            }
+            for (uint8_t i = 0; i < valueCount; ++i) {
+              addFormSeparator(2);
               Dallas_show_sensor_stats_webform_load(P004_data->get_sensor_data(i));
             }
           }
         }
+#endif
       }
       success = true;
       break;
@@ -206,7 +229,7 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
         static_cast<P004_data_struct *>(getPluginTaskData(event->TaskIndex));
       int8_t Plugin_004_DallasPin_RX = CONFIG_PIN1;
       int8_t Plugin_004_DallasPin_TX = CONFIG_PIN2;
-      const int valueCount = P004_NR_OUTPUT_VALUES;
+      const int valueCount           = P004_NR_OUTPUT_VALUES;
 
       if (Plugin_004_DallasPin_TX == -1) {
         Plugin_004_DallasPin_TX = Plugin_004_DallasPin_RX;
@@ -243,7 +266,7 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
       int8_t Plugin_004_DallasPin_RX = CONFIG_PIN1;
       int8_t Plugin_004_DallasPin_TX = CONFIG_PIN2;
       const uint8_t res              = P004_RESOLUTION;
-      const int valueCount = P004_NR_OUTPUT_VALUES;
+      const int     valueCount       = P004_NR_OUTPUT_VALUES;
 
       if (Plugin_004_DallasPin_TX == -1) {
         Plugin_004_DallasPin_TX = Plugin_004_DallasPin_RX;
@@ -255,11 +278,11 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
         # endif // ifdef USE_SECOND_HEAP
 
         initPluginTaskData(event->TaskIndex, new (std::nothrow) P004_data_struct(
-                           event->TaskIndex,
-                           Plugin_004_DallasPin_RX,
-                           Plugin_004_DallasPin_TX,
-                           res,
-                           valueCount == 1 && P004_SCAN_ON_INIT));
+                             event->TaskIndex,
+                             Plugin_004_DallasPin_RX,
+                             Plugin_004_DallasPin_TX,
+                             res,
+                             valueCount == 1 && P004_SCAN_ON_INIT));
       }
       P004_data_struct *P004_data =
         static_cast<P004_data_struct *>(getPluginTaskData(event->TaskIndex));
@@ -284,6 +307,7 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
 
       if (nullptr != P004_data) {
         const int valueCount = P004_NR_OUTPUT_VALUES;
+
         if ((valueCount == 1) && P004_SCAN_ON_INIT) {
           if (!P004_data->sensorAddressSet()) {
             P004_data->init();
@@ -308,8 +332,8 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
 
               if (P004_data->read_temp(value, i))
               {
-                UserVar.setFloat(event->TaskIndex, i,  value);
-                success                          = true;
+                UserVar.setFloat(event->TaskIndex, i, value);
+                success = true;
               }
               else
               {
@@ -323,7 +347,7 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
                     default:
                       break;
                   }
-                  UserVar.setFloat(event->TaskIndex, i,  errorValue);
+                  UserVar.setFloat(event->TaskIndex, i, errorValue);
                 }
               }
 
@@ -335,9 +359,7 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
                 } else {
                   log += F("Error!");
                 }
-                log += F(" (");
-                log += P004_data->get_formatted_address(i);
-                log += ')';
+                log += strformat(F(" (%s)"), P004_data->get_formatted_address(i).c_str());
                 addLogMove(LOG_LEVEL_INFO, log);
               }
             }
@@ -347,6 +369,53 @@ boolean Plugin_004(uint8_t function, struct EventStruct *event, String& string)
       }
       break;
     }
+
+    # if P004_FEATURE_GET_CONFIG_VALUE
+    case PLUGIN_GET_CONFIG_VALUE:
+    {
+      P004_data_struct *P004_data =
+        static_cast<P004_data_struct *>(getPluginTaskData(event->TaskIndex));
+
+      if (nullptr != P004_data) {
+        const String cmd = parseString(string, 1, '.');
+
+        if (equals(cmd, F("sensorstats"))) { // To distinguish from 'DeviceStats'
+          const String par1 = parseString(string, 2, '.');
+          int32_t nPar1;
+
+          if (validIntFromString(par1, nPar1) && (nPar1 > 0) && (nPar1 <= P004_NR_OUTPUT_VALUES)) {
+            nPar1--; // From DeviceNr to array index
+            const String subcmd          = parseString(string, 3, '.');
+            Dallas_SensorData sensorData = P004_data->get_sensor_data(nPar1);
+            success = true;
+
+            if (equals(subcmd, F("success"))) {
+              string = sensorData.read_success;
+            }  else
+            if (equals(subcmd, F("retry"))) {
+              string = sensorData.read_retry;
+            } else
+            if (equals(subcmd, F("failed"))) {
+              string = sensorData.read_failed;
+            } else
+            if (equals(subcmd, F("initfailed"))) {
+              string = sensorData.start_read_failed;
+            } else
+            if (equals(subcmd, F("resolution"))) {
+              string = sensorData.actual_res;
+            } else
+            if (equals(subcmd, F("address"))) {
+              string = sensorData.get_formatted_address();
+            } else
+            { // Unsupported stat
+              success = false;
+            }
+          }
+        }
+      }
+      break;
+    }
+    # endif // if P004_FEATURE_GET_CONFIG_VALUE
   }
   return success;
 }

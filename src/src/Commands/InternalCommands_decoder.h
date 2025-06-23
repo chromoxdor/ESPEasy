@@ -59,6 +59,8 @@ enum class ESPEasy_cmd_e : uint8_t {
   ethwifimode,
 #endif // FEATURE_ETHERNET
 
+  factoryreset,
+
   gateway,
   gpio,
   gpiotoggle,
@@ -75,10 +77,15 @@ enum class ESPEasy_cmd_e : uint8_t {
 #endif // ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
 
   let,
+  #if FEATURE_STRING_VARIABLES
+  letstr,
+  #endif // if FEATURE_STRING_VARIABLES
   load,
   logentry,
   looptimerset,
   looptimerset_ms,
+  looptimersetandrun,
+  looptimersetandrun_ms,
   longpulse,
   longpulse_ms,
 #ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
@@ -112,6 +119,10 @@ enum class ESPEasy_cmd_e : uint8_t {
 #endif // #if FEATURE_NOTIFIER
   ntphost,
 
+#if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
+  owscan,
+#endif // if FEATURE_DALLAS_HELPER && FEATURE_COMMAND_OWSCAN
+
   password,
 #ifdef USES_P019
   pcfgpio,
@@ -143,6 +154,7 @@ enum class ESPEasy_cmd_e : uint8_t {
   pulse,
 #if FEATURE_MQTT
   publish,
+  publishr,
 #endif // #if FEATURE_MQTT
 #if FEATURE_PUT_TO_HTTP
   puttohttp,
@@ -150,7 +162,6 @@ enum class ESPEasy_cmd_e : uint8_t {
   pwm,
 
   reboot,
-  reset,
   resetflashwritecounter,
   restart,
   rtttl,
@@ -169,6 +180,7 @@ enum class ESPEasy_cmd_e : uint8_t {
   sendtohttp,
 #endif // FEATURE_SEND_TO_HTTP
   sendtoudp,
+  sendtoudpmix,
 #ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
   serialfloat,
 #endif // ifndef BUILD_NO_DIAGNOSTIC_COMMANDS
@@ -192,6 +204,10 @@ enum class ESPEasy_cmd_e : uint8_t {
   taskrun,
   taskrunat,
   taskvalueset,
+  #if FEATURE_STRING_VARIABLES
+  taskvaluesetderived,
+  taskvaluesetpresentation,
+  #endif // if FEATURE_STRING_VARIABLES
   taskvaluetoggle,
   taskvaluesetandrun,
   timerpause,

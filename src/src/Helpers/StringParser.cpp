@@ -26,6 +26,39 @@
 /********************************************************************************************\
    Parse string template
  \*********************************************************************************************/
+bool hasEscapedCharacter(String& str, const char EscapeChar)
+{
+  const String EscStr = concat(F("\\"), EscapeChar);
+  return (str.indexOf(EscStr)>=0);
+}
+
+void stripEscapeCharacters(String& str)
+{
+  const char braces[]     = { '%', '[', ']', '{', '}', '(', ')' };
+  constexpr uint8_t nrbraces = NR_ELEMENTS(braces);
+
+  for (uint8_t i = 0; i < nrbraces; ++i) {
+    const String s(concat(F("\\"), braces[i]));
+    str.replace(s, s.substring(1));
+  }
+}
+
+#if FEATURE_STRING_VARIABLES
+String parseTemplateAndCalculate(String& tmpString) {
+  stripEscapeCharacters(tmpString);
+  String str = parseTemplate(tmpString);
+  ESPEASY_RULES_FLOAT_TYPE result{};
+  if (!str.isEmpty() && (str[0] == '=') && !isError(Calculate(str.substring(1), result, true))) {
+    # if FEATURE_USE_DOUBLE_AS_ESPEASY_RULES_FLOAT_TYPE
+    str = doubleToString(result, 6, true);
+    # else // if FEATURE_USE_DOUBLE_AS_ESPEASY_RULES_FLOAT_TYPE
+    str = floatToString(result, 6, true);
+    # endif // if FEATURE_USE_DOUBLE_AS_ESPEASY_RULES_FLOAT_TYPE
+  }
+  return str;
+}
+#endif // if FEATURE_STRING_VARIABLES
+
 String parseTemplate(String& tmpString)
 {
   return parseTemplate(tmpString, false);
@@ -58,10 +91,22 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
   }
   parseSystemVariables(tmpString, useURLencode);
 
-
   int startpos = 0;
   int lastStartpos = 0;
   int endpos = 0;
+  bool mustReplaceEscapedSquareBracket = false;
+  String MaskEscapedBracket;
+
+  if (hasEscapedCharacter(tmpString, '[') || hasEscapedCharacter(tmpString, ']')) {
+    // replace the \[ and \] with other characters to mask the escaped square brackets so we can continue parsing.
+    // We have to unmask then after we're finished.
+    MaskEscapedBracket = static_cast<char>(0x05); // ASCII 0x05 = Enquiry ENQ
+    tmpString.replace(F("\\["), MaskEscapedBracket);
+    MaskEscapedBracket = static_cast<char>(0x06); // ASCII 0x06 = Acknowledge ACK
+    tmpString.replace(F("\\]"), MaskEscapedBracket);
+    mustReplaceEscapedSquareBracket = true;
+  }
+
   {
     String deviceName, valueName, format;
 
@@ -71,14 +116,44 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
 
       // deviceName is lower case, so we can compare literal string (no need for equalsIgnoreCase)
       const bool devNameEqInt = equals(deviceName, F("int"));
-      if (devNameEqInt || equals(deviceName, F("var")))
+      #if FEATURE_STRING_VARIABLES
+      const bool devNameEqStr    = equals(deviceName, F("str"));
+      const bool devNameEqLength = equals(deviceName, F("length"));
+      #endif // if FEATURE_STRING_VARIABLES
+      if (devNameEqInt || equals(deviceName, F("var"))
+         #if FEATURE_STRING_VARIABLES
+         || devNameEqStr || devNameEqLength
+         #endif // if FEATURE_STRING_VARIABLES
+         )
       {
         // Address an internal variable either as float or as int
         // For example: Let,10,[VAR#9]
-        uint32_t varNum;
+        // For example: Let,10,[INT#bla]
 
-        if (validUIntFromString(valueName, varNum)) {
-          unsigned char nr_decimals = maxNrDecimals_fpType(getCustomFloatVar(varNum));
+        if (!valueName.isEmpty()) {
+         #if FEATURE_STRING_VARIABLES
+         if (devNameEqStr) {
+           String value(getCustomStringVar(valueName));
+           transformValue(
+              newString, 
+              minimal_lineSize, 
+              std::move(value), 
+              format, 
+              tmpString);
+         } else
+         if (devNameEqLength) {
+           String value(getCustomStringVar(valueName).length());
+           transformValue(
+              newString, 
+              minimal_lineSize, 
+              std::move(value), 
+              format, 
+              tmpString);
+         } else
+         #endif
+         {
+          const ESPEASY_RULES_FLOAT_TYPE floatvalue = getCustomFloatVar(valueName);
+          unsigned char nr_decimals = maxNrDecimals_fpType(floatvalue);
           bool trimTrailingZeros    = true;
 
           if (devNameEqInt) {
@@ -89,9 +164,9 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
             trimTrailingZeros = false;
           }
           #if FEATURE_USE_DOUBLE_AS_ESPEASY_RULES_FLOAT_TYPE
-          String value = doubleToString(getCustomFloatVar(varNum), nr_decimals, trimTrailingZeros);
+          String value = doubleToString(floatvalue, nr_decimals, trimTrailingZeros);
           #else
-          String value = floatToString(getCustomFloatVar(varNum), nr_decimals, trimTrailingZeros);
+          String value = floatToString(floatvalue, nr_decimals, trimTrailingZeros);
           #endif
           transformValue(
             newString, 
@@ -99,6 +174,7 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
             std::move(value), 
             format, 
             tmpString);
+         }
         }
       }
       else if (equals(deviceName, F("plugin")))
@@ -141,7 +217,11 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
               String value = formatUserVar(taskIndex, valueNr, isvalid);
 
               if (isvalid) {
-                transformValue(newString, minimal_lineSize, std::move(value), format, tmpString);
+                transformValue(newString, minimal_lineSize, std::move(value), format, tmpString
+                               #if FEATURE_STRING_VARIABLES
+                               , taskIndex, valueNr, valueName // for handling $ format option
+                               #endif // if FEATURE_STRING_VARIABLES
+                              );
                 isHandled = true;
               }
             } else {
@@ -151,7 +231,11 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
 
               if (PluginCall(PLUGIN_GET_CONFIG_VALUE, &TempEvent, tmpName))
               {
-                transformValue(newString, minimal_lineSize, std::move(tmpName), format, tmpString);
+                transformValue(newString, minimal_lineSize, std::move(tmpName), format, tmpString
+                               #if FEATURE_STRING_VARIABLES
+                               , taskIndex, INVALID_TASKVAR_INDEX, valueName // for handling $ format option
+                               #endif // if FEATURE_STRING_VARIABLES
+                              );
                 isHandled = true;
               }
             }
@@ -182,10 +266,88 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
               }
             }
             if (!value.isEmpty()) {
-              transformValue(newString, minimal_lineSize, std::move(value), format, tmpString);
+              transformValue(newString, minimal_lineSize, std::move(value), format, tmpString
+                             #if FEATURE_STRING_VARIABLES
+                             , taskIndex, INVALID_TASKVAR_INDEX, valueName // for handling $ format option
+                             #endif // if FEATURE_STRING_VARIABLES
+                            );
               // isHandled = true;
             }
           }
+          #if FEATURE_STRING_VARIABLES
+          if (!isHandled) {
+            String value;
+            const String valName = parseString(valueName, 1);
+            String derived = getCustomStringVar(strformat(F(TASK_VALUE_DERIVED_PREFIX_TEMPLATE), deviceName.c_str(), valName.c_str()));
+            if (!derived.isEmpty()) {
+              value = parseTemplateAndCalculate(derived);
+              if (!value.isEmpty()) {
+                transformValue(newString, minimal_lineSize, std::move(value), format, tmpString,
+                               taskIndex, INVALID_TASKVAR_INDEX, valName // for handling $ format option
+                              );
+                isHandled = true;
+              }
+            }
+          }
+
+          #if FEATURE_TASKVALUE_ATTRIBUTES
+          if (!isHandled && valueName.indexOf('.') > -1) { // TaskValue specific attributes
+            const String valName = parseString(valueName, 1, '.');
+            const String command = parseString(valueName, 2, '.');
+            String value;
+
+            if (!command.isEmpty()) {
+              const uint8_t valueCount = getValueCountForTask(taskIndex);
+
+              for (taskVarIndex_t i = 0; i < valueCount; i++) {
+                if (valName.equalsIgnoreCase(Cache.getTaskDeviceValueName(taskIndex, i))) {
+                  #if FEATURE_TASKVALUE_UNIT_OF_MEASURE
+                  if (equals(command, F("uom"))) { // Fetch UnitOfMeasure
+                    value = toUnitOfMeasureName(Cache.getTaskVarUnitOfMeasure(taskIndex, i));
+                    isHandled = true; // Empty is a valid result
+                    break;
+                  } else
+                  #endif // if FEATURE_TASKVALUE_UNIT_OF_MEASURE
+                  if (equals(command, F("decimals"))) { // Fetch decimals
+                    value = Cache.getTaskDeviceValueDecimals(taskIndex, i);
+                    break;
+                  } else
+                  if (equals(command, F("hasformula"))) { // Fetch formula status
+                    value = Cache.hasFormula(taskIndex, i);
+                    break;
+                  #if FEATURE_PLUGIN_STATS
+                  } else
+                  if (equals(command, F("statsenabled"))) { // Fetch Stats enabled
+                    value = Cache.enabledPluginStats(taskIndex, i);
+                    break;
+                  #endif // if FEATURE_PLUGIN_STATS
+                  }
+                }
+              }
+              if (!value.isEmpty() || isHandled) {
+                transformValue(newString, minimal_lineSize, std::move(value), format, tmpString);
+                // isHandled = true;
+              }
+            }
+          }
+          #endif // if FEATURE_TASKVALUE_ATTRIBUTES
+
+          if (!isHandled && valueName.indexOf('.') > -1) {
+            String value;
+            const String fullValueName = parseString(valueName, 1);
+            const String valName       = parseString(fullValueName, 1, '.');
+            const String command       = parseString(fullValueName, 2, '.');
+            if (equals(command, F("uom"))) { // Fetch UnitOfMeasure
+              value = getCustomStringVar(strformat(F(TASK_VALUE_UOM_PREFIX_TEMPLATE), deviceName.c_str(), valName.c_str()));
+            }
+            if (!value.isEmpty()) {
+              transformValue(newString, minimal_lineSize, std::move(value), format, tmpString,
+                              taskIndex, INVALID_TASKVAR_INDEX, valName
+                            );
+              // isHandled = true;
+            }
+          }
+          #endif // if FEATURE_STRING_VARIABLES
         }
       }
 
@@ -205,6 +367,15 @@ String parseTemplate_padded(String& tmpString, uint8_t minimal_lineSize, bool us
   #ifndef BUILD_NO_RAM_TRACKER
   checkRAM(F("parseTemplate2"));
   #endif // ifndef BUILD_NO_RAM_TRACKER
+
+  if (mustReplaceEscapedSquareBracket) {
+    // We now have to check if we did mask some escaped square bracket and unmask them.
+    // Let's hope we don't mess up any Unicode here.
+    MaskEscapedBracket = static_cast<char>(0x05); // ASCII 0x05 = Enquiry ENQ
+    newString.replace(MaskEscapedBracket, F("\\["));
+    MaskEscapedBracket = static_cast<char>(0x06); // ASCII 0x06 = Acknowledge ACK
+    newString.replace(MaskEscapedBracket, F("\\]"));
+  }
 
   // Restore previous loaded taskSettings
   if (validTaskIndex(currentTaskIndex))
@@ -299,10 +470,16 @@ bool isTransformString(char c, bool logicVal, String& strValue)
 // valueFormat="transformation#justification"
 void transformValue(
   String      & newString,
-  uint8_t          lineSize,
+  uint8_t       lineSize,
   String        value,
   String      & valueFormat,
-  const String& tmpString)
+  const String& tmpString
+  #if FEATURE_STRING_VARIABLES
+  , taskIndex_t taskIndex
+  , uint8_t     valueIndex
+  , String      valueName
+  #endif // if FEATURE_STRING_VARIABLES
+  )
 {
   // FIXME TD-er: This function does append to newString and uses its length to perform right aling.
   // Is this the way it is intended to use?
@@ -381,7 +558,7 @@ void transformValue(
               }
 
               if (equals(value, '0')) {
-                value = String();
+                free_string(value);
               } else {
                 const int valueLength = value.length();
 
@@ -456,6 +633,21 @@ void transformValue(
               value = static_cast<int>(ceilf(valFloat));
             #endif
               break;
+            #if FEATURE_STRING_VARIABLES
+            case TASK_VALUE_PRESENTATION_PREFIX_CHAR: // '$' Apply presentation format
+            {
+              if (validTaskIndex(taskIndex) && (validTaskVarIndex(valueIndex) || !valueName.isEmpty())) {
+                const deviceIndex_t DeviceIndex = getDeviceIndex_from_TaskIndex(taskIndex);
+                bool hasPresentation = false;
+                EventStruct TempEvent(taskIndex);
+                const String presentation = formatUserVarForPresentation(&TempEvent, valueIndex, hasPresentation, value, DeviceIndex, valueName);
+                if (hasPresentation) {
+                  value = presentation;
+                }
+              }
+              break;
+            }
+            #endif // if FEATURE_STRING_VARIABLES
             default:
               value = F("ERR");
               break;
@@ -625,7 +817,10 @@ taskIndex_t findTaskIndexByName(String deviceName, bool allowDisabled)
         // Use entered taskDeviceName can have any case, so compare case insensitive.
         if (deviceName.equalsIgnoreCase(taskDeviceName))
         {
-          Cache.taskIndexName[deviceName] = taskIndex;
+          Cache.taskIndexName.emplace(
+            std::make_pair(
+              std::move(deviceName), 
+              taskIndex));
           return taskIndex;
         }
       }
@@ -666,9 +861,12 @@ uint8_t findDeviceValueIndexByName(const String& valueName, taskIndex_t taskInde
   for (uint8_t valueNr = 0; valueNr < valCount; valueNr++)
   {
     // Check case insensitive, since the user entered value name can have any case.
-    if (valueName.equalsIgnoreCase(getTaskValueName(taskIndex, valueNr)))
+    if (valueName.equalsIgnoreCase(Cache.getTaskDeviceValueName(taskIndex, valueNr)))
     {
-      Cache.taskIndexValueName[cache_valueName] = valueNr;
+      Cache.taskIndexValueName.emplace(
+        std::make_pair(
+          std::move(cache_valueName), 
+          valueNr));
       return valueNr;
     }
   }
@@ -724,7 +922,7 @@ bool findNextDevValNameInString(const String& input, int& startpos, int& endpos,
     move_special(format,    valueName.substring(hashpos + 1));
     move_special(valueName, valueName.substring(0, hashpos));
   } else {
-    format = String();
+    free_string(format);
   }
   deviceName.toLowerCase();
   valueName.toLowerCase();

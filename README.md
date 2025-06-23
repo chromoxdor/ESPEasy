@@ -68,7 +68,7 @@ alt_wifi        | Alternative WiFi configuration     |
 beta            | Arduino Beta release               |
 sdk3            | Arduino SDK v.3                    |
 core_274        | Arduino Core 2.7.4 release         |
-core_302        | Arduino Core 3.0.2 release         |
+core_312        | Arduino Core 3.1.2 release         |
 core_274_sdk3   | Arduino Core 2.7.4 SDK v.3 release |
 
 
@@ -110,7 +110,7 @@ Flash size | Description                 |
 16M1M      | 16 MB with 1 MB filesystem  |
 16M8M      | 16 MB with 8 MB filesystem  |
 
-N.B. Starting with release 2023/12/25, All ESP32 LittleFS builds use IDF 5.1, to support newer ESP32 chips like ESP32-C2 and ESP32-C6. Other SPIFFS based ESP32 builds will be migrated to LittleFS as SPIFFS is no longer available in IDF 5 and later. A migration plan will be made available in 2024.
+N.B. Starting with release 2023/12/25, All ESP32 LittleFS builds use IDF 5.3, to support newer ESP32 chips like ESP32-C2 and ESP32-C6, and SPI Ethernet. Other SPIFFS based ESP32 builds will be migrated to LittleFS as SPIFFS is no longer officially available in IDF 5 and later. As a temporary solution, a specially crafted IDF 5.1 build that still includes SPIFFS, is used for the SPIFFS builds. A migration plan will be made available in 2025.
 
 *[opt-build-features]* can be any of:
 Build features  | Description                                                                                               |
@@ -121,28 +121,36 @@ OTA             | Arduino OTA (Over The Air) update feature enabled             
 Domoticz        | Only Domoticz controllers (HTTP) and plugins included                                                     |
 Domoticz_MQTT   | Only Domoticz controllers (MQTT) and plugins included                                                     |
 FHEM_HA         | Only FHEM/OpenHAB/Home Assistant (MQTT) controllers and plugins included                                  |
-ETH             | Ethernet interface enabled (ESP32-classic only)                                                           |
+ETH             | Ethernet support enabled (ESP32 and IDF 5.x based builds)                                                 |
 OPI_PSRAM       | Specific configuration to enable PSRAM detection, ESP32-S3 only                                           |
 CDC             | Support USBCDC/HWCDC-serial console on ESP32-C3, ESP32-S2, ESP32-S3 and ESP32-C6                          |
 noOTA/NO_OTA    | Does not support OTA (Over The Air-updating of the firmware) Use [the flash page](https://td-er.nl/ESPEasy/) or ESPTool via USB Serial |
 
-Some example firmware names:
-Firmware name                                                     | Hardware                              | Included plugins                 |
-------------------------------------------------------------------|---------------------------------------|----------------------------------|
-ESPEasy_mega-20230822_normal_ESP8266_1M.bin                       | ESP8266/ESP8285 with 1MB flash        | Stable                           |
-ESPEasy_mega-20230822_normal_ESP8266_4M1M.bin                     | ESP8266 with 4MB flash                | Stable                           |
-ESPEasy_mega-20230822_collection_A_ESP8266_4M1M.bin               | ESP8266 with 4MB flash                | Stable + Collection base + set A |
-ESPEasy_mega-20230822_normal_ESP32_4M316k.bin                     | ESP32 with 4MB flash                  | Stable                           |
-ESPEasy_mega-20230822_collection_A_ESP32_4M316k.bin               | ESP32 with 4MB flash                  | Stable + Collection base + set A |
-ESPEasy_mega-20230822_collection_B_ESP32_4M316k.bin               | ESP32 with 4MB flash                  | Stable + Collection base + set B |
-ESPEasy_mega-20230822_max_ESP32s3_8M1M_LittleFS_CDC.bin           | ESP32-S3 with 8MB flash, CDC-serial   | All available plugins            |
-ESPEasy_mega-20230822_max_ESP32s3_8M1M_LittleFS_OPI_PSRAM_CDC.bin | ESP32-S3 8MB flash, PSRAM, CDC-serial | All available plugins            |
-ESPEasy_mega-20230822_max_ESP32_16M1M.bin                         | ESP32 with 16MB flash                 | All available plugins            |
-ESPEasy_mega-20230822_max_ESP32_16M8M_LittleFS.bin                | ESP32 with 16MB flash                 | All available plugins            |
+N.B. Starting ca. 2025/02/27, many ESP32 builds are *only* available with _ETH suffix, indicating that Ethernet support is enabled, to reduce the (rather high) number of builds.
 
-NB: Since 2023-05-10 the binary files for the different ESP32 variants (S2, C3, S3, 'Classic') are available in separate archives.
+Some example firmware names:
+Firmware name                                                         | Hardware                                        | Included plugins                 |
+----------------------------------------------------------------------|-------------------------------------------------|----------------------------------|
+ESPEasy_mega-20230822_normal_ESP8266_1M.bin                           | ESP8266/ESP8285 with 1MB flash                  | Stable                           |
+ESPEasy_mega-20230822_normal_ESP8266_4M1M.bin                         | ESP8266 with 4MB flash                          | Stable                           |
+ESPEasy_mega-20230822_collection_A_ESP8266_4M1M.bin                   | ESP8266 with 4MB flash                          | Stable + Collection base + set A |
+ESPEasy_mega-20230822_normal_ESP32_4M316k_ETH.bin                     | ESP32 with 4MB flash                            | Stable                           |
+ESPEasy_mega-20230822_collection_A_ESP32_4M316k_ETH.bin               | ESP32 with 4MB flash                            | Stable + Collection base + set A |
+ESPEasy_mega-20230822_collection_B_ESP32_4M316k_ETH.bin               | ESP32 with 4MB flash                            | Stable + Collection base + set B |
+ESPEasy_mega-20230822_max_ESP32s3_8M1M_LittleFS_CDC_ETH.bin           | ESP32-S3 with 8MB flash, CDC-serial, Ethernet   | All available plugins            |
+ESPEasy_mega-20230822_max_ESP32s3_8M1M_LittleFS_OPI_PSRAM_CDC_ETH.bin | ESP32-S3 8MB flash, PSRAM, CDC-serial, Ethernet | All available plugins            |
+ESPEasy_mega-20230822_max_ESP32_16M1M_ETH.bin                         | ESP32 with 16MB flash, SPIFFS, Ethernet         | All available plugins            |
+ESPEasy_mega-20230822_max_ESP32_16M8M_LittleFS_ETH.bin                | ESP32 with 16MB flash, LittleFS, Ethernet       | All available plugins            |
+
+The binary files for the different ESP32 variants (S2, C3, S3, C2, C6, Solo1, 'Classic') are available in separate archives.
 
 To see what plugins are included in which collection set, you can find that on the [ESPEasy Plugin overview page](https://espeasy.readthedocs.io/en/latest/Plugin/_Plugin.html)
+
+For ESP32 builds (all models) there are 2 ``.bin`` files available:
+1) a ``.factory.bin`` to be used when flashing the firmware via external tools, like the Espressif Flash Download tool, to be loaded at address ``0x0``, that includes the bootloader and flash-partitioning data. This is the second of 2 recommended methods to install ESPEasy on a new device.<BR/>
+The main recommended method for flashing ESPEasy onto a (new) device is via [this flash page](https://td-er.nl/ESPEasy/) (using Chrome or Edge webbrowser), where you connect the device via USB-serial, and select what firmware-build to install.
+2) a 'regular' ``.bin`` file, that can be used to update a running board via OTA (Over The Air), using the Update Firmware button on the Tools page. The .bin file then has to be available for the device the webbrowser is running from (local or via a network), as the file is uploaded via the webbrowser.<BR/>
+The firmware to upload via OTA must match both the ESP32 model, and current partitioning & formatting, LittleFS as indicated in the name, or SPIFFS.
 
 ## Documentation & more info
 
@@ -152,6 +160,9 @@ Additional details and discussion are on the "Experimental" section of the forum
 
 [![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/letscontrolit/ESPEasy) 
 
+## SAST Tools
+
+[PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
 
 ## Icons used
 

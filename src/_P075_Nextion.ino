@@ -3,7 +3,7 @@
 
 # include "src/PluginStructs/P075_data_struct.h"
 
-#include "src/ESPEasyCore/ESPEasyWifi.h"
+# include "src/ESPEasyCore/ESPEasyWifi.h"
 
 // #######################################################################################################
 // #######################################################################################################
@@ -49,38 +49,31 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
 
   switch (function) {
     case PLUGIN_DEVICE_ADD: {
-      Device[++deviceCount].Number           = PLUGIN_ID_075;
-      Device[deviceCount].Type               = DEVICE_TYPE_SERIAL;
-      Device[deviceCount].VType              = Sensor_VType::SENSOR_TYPE_DUAL;
-      Device[deviceCount].Ports              = 0;
-      Device[deviceCount].PullUpOption       = false; // Pullup is not used.
-      Device[deviceCount].InverseLogicOption = false;
-      Device[deviceCount].FormulaOption      = false;
-      Device[deviceCount].ValueCount         = 2;
-      Device[deviceCount].SendDataOption     = true;
-      Device[deviceCount].TimerOption        = true;
-      Device[deviceCount].TimerOptional      = true; // Allow user to disable interval function.
-      Device[deviceCount].GlobalSyncOption   = true;
+      auto& dev = Device[++deviceCount];
+      dev.Number         = PLUGIN_ID_075;
+      dev.Type           = DEVICE_TYPE_SERIAL;
+      dev.VType          = Sensor_VType::SENSOR_TYPE_DUAL;
+      dev.ValueCount     = 2;
+      dev.SendDataOption = true;
+      dev.TimerOption    = true;
+      dev.TimerOptional  = true; // Allow user to disable interval function.
 
       // FIXME TD-er: Not sure if access to any existing task data is needed when saving
-      Device[deviceCount].ExitTaskBeforeSave = false;
+      dev.ExitTaskBeforeSave = false;
 
       break;
     }
-
 
     case PLUGIN_GET_DEVICENAME: {
       string = F(PLUGIN_NAME_075);
       break;
     }
 
-
     case PLUGIN_GET_DEVICEVALUENAMES: {
       strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[0], PSTR(PLUGIN_VALUENAME1_075));
       strcpy_P(ExtraTaskSettings.TaskDeviceValueNames[1], PSTR(PLUGIN_VALUENAME2_075));
       break;
     }
-
 
     case PLUGIN_GET_DEVICEGPIONAMES: {
       serialHelper_getGpioNames(event);
@@ -96,14 +89,16 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
 
     case PLUGIN_WEBFORM_SHOW_SERIAL_PARAMS:
     {
-      const __FlashStringHelper *options[4] = {
+      const __FlashStringHelper *options[] = {
         F("9600"),
         F("38400"),
         F("57600"),
         F("115200")
       };
 
-      addFormSelector(F("Baud Rate"), F("baud"), 4, options, nullptr, P075_BaudRate);
+      constexpr size_t optionCount = NR_ELEMENTS(options);
+      const FormSelectorOptions selector(optionCount, options);
+      selector.addFormSelector(F("Baud Rate"), F("baud"), P075_BaudRate);
       addUnit(F("baud"));
       break;
     }
@@ -128,7 +123,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
       }
 
       if (Settings.TaskDeviceTimer[event->TaskIndex] == 0) { // Is interval timer disabled?
-        addFormNote(concat(F("Interval Timer OFF, Nextion Lines (above)"), P075_IncludeValues 
+        addFormNote(concat(F("Interval Timer OFF, Nextion Lines (above)"), P075_IncludeValues
           ? F(" and Values (below) <b>NOT</b> scheduled for updates")
           : F(" <b>NOT</b> scheduled for updates")));
       }
@@ -165,17 +160,9 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
         strcpy(ExtraTaskSettings.TaskDeviceName, PLUGIN_DEFAULT_NAME); // Name missing, populate default name.
       }
 
-      //        PCONFIG(0) = isFormItemChecked(F("AdvHwSerial"));
       P075_BaudRate      = getFormItemInt(F("baud"));
       P075_IncludeValues = isFormItemChecked(F("IncludeValues"));
 
-      /* Task will be stopped and restarted, so no reason to reload the display here
-         P075_data_struct *P075_data = static_cast<P075_data_struct *>(getPluginTaskData(event->TaskIndex));
-
-         if (nullptr != P075_data) {
-         P075_data->loadDisplayLines(event->TaskIndex);
-         }
-       */
       success = true;
       break;
     }
@@ -185,8 +172,8 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
       uint8_t BaudCode = P075_BaudRate;
 
       if (BaudCode > P075_B115200) { BaudCode = P075_B9600; }
-      const uint32_t BaudArray[4]  = { 9600UL, 38400UL, 57600UL, 115200UL };
-      const ESPEasySerialPort port = static_cast<ESPEasySerialPort>(CONFIG_PORT);
+      constexpr uint32_t BaudArray[] = { 9600UL, 38400UL, 57600UL, 115200UL };
+      const ESPEasySerialPort port   = static_cast<ESPEasySerialPort>(CONFIG_PORT);
       initPluginTaskData(event->TaskIndex, new (std::nothrow) P075_data_struct(port, CONFIG_PIN1, CONFIG_PIN2, BaudArray[BaudCode]));
       P075_data_struct *P075_data = static_cast<P075_data_struct *>(getPluginTaskData(event->TaskIndex));
 
@@ -214,9 +201,10 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
               UcTmpString.toUpperCase();
               RssiIndex = UcTmpString.indexOf(F("RSSIBAR")); // RSSI bargraph Keyword found, wifi value in dBm.
             }
+
             if (RssiIndex >= 0) {
               newString = concat(
-                P075_data->displayLines[x].substring(0, RssiIndex), 
+                P075_data->displayLines[x].substring(0, RssiIndex),
                 GetRSSI_quality() * 10);
             }
             else {
@@ -226,11 +214,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
 
             P075_sendCommand(event->TaskIndex, newString.c_str());
             # ifdef P075_DEBUG_LOG
-            String log;
-            log.reserve(P75_Nchars + 50); // Prevent re-allocation
-            log += concat(F("NEXTION075 : Cmd Statement Line-"), x + 1);
-            log += concat(F(" Sent: "), newString);
-            addLogMove(LOG_LEVEL_INFO, log);
+            addLog(LOG_LEVEL_INFO, strformat(F("NEXTION075 : Cmd Statement Line-%d Sent: %s"), x + 1, newString.c_str()));
             # endif // ifdef P075_DEBUG_LOG
           }
         }
@@ -238,11 +222,10 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
         // At Interval timer, send idx & value data only if user enabled "values" interval mode.
         if (P075_IncludeValues) {
           # ifdef P075_DEBUG_LOG
-          String log;
-          log.reserve(120); // Prevent re-allocation
-          log += concat(F("NEXTION075: Interval values data enabled, resending idx="), formatUserVarNoCheck(event->TaskIndex, 0));
-          log += concat(F(", value="), formatUserVarNoCheck(event->TaskIndex, 1));
-          addLogMove(LOG_LEVEL_INFO, log);
+          addLogMove(LOG_LEVEL_INFO,
+                     strformat(F("NEXTION075: Interval values data enabled, resending idx=%s, value=%s"),
+                               formatUserVarNoCheck(event, 0).c_str(),
+                               formatUserVarNoCheck(event, 1).c_str()));
           # endif // ifdef P075_DEBUG_LOG
 
           success = true;
@@ -269,7 +252,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
         const String nextionArguments = parseStringToEndKeepCase(string, 2);
         P075_sendCommand(event->TaskIndex, nextionArguments.c_str());
         {
-          String log = concat(F("NEXTION075 : WRITE = "), nextionArguments);
+          const String log = concat(F("NEXTION075 : WRITE = "), nextionArguments);
           # ifndef BUILD_NO_DEBUG
           addLog(LOG_LEVEL_DEBUG, log);
           # endif // ifndef BUILD_NO_DEBUG
@@ -295,12 +278,6 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
       break;
     }
 
-    case PLUGIN_ONCE_A_SECOND: {
-      success = true;
-      break;
-    }
-
-
     case PLUGIN_TEN_PER_SECOND: {
       P075_data_struct *P075_data = static_cast<P075_data_struct *>(getPluginTaskData(event->TaskIndex));
 
@@ -308,12 +285,12 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
         break;
       }
 
-      if (P075_data->rxPin < 0) {
+      if (!validGpio(P075_data->rxPin)) {
         addLog(LOG_LEVEL_INFO, F("NEXTION075 : Missing RxD Pin, aborted serial receive"));
         break;
       }
 
-      if (P075_data->easySerial == nullptr) { 
+      if (P075_data->easySerial == nullptr) {
         break; // P075_data->easySerial missing, exit.
       }
       {
@@ -327,11 +304,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
         uint8_t  charCount = P075_data->easySerial->available(); // Prime the Soft Serial engine.
 
         if (charCount >= RXBUFFWARN) {
-          String log;
-          log.reserve(70); // Prevent re-allocation
-          log += concat(F("NEXTION075 : RxD P075_data->easySerial Buffer capacity warning, "), charCount);
-          log += F(" bytes");
-          addLogMove(LOG_LEVEL_INFO, log);
+          addLog(LOG_LEVEL_INFO, strformat(F("NEXTION075 : RxD P075_data->easySerial Buffer capacity warning, %d bytes"), charCount));
         }
         uint32_t baudrate_delay_unit = P075_data->baudrate / 9600;
 
@@ -355,23 +328,20 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
               }
 
               __buffer[i] = 0x00;
-              
-              // FIXME TD-er: (PVS Studio) A part of conditional expression is always false: (0xFF == __buffer[4]). The value range of char type: [-128, 127].
+
+              // FIXME TD-er: (PVS Studio) A part of conditional expression is always false: (0xFF == __buffer[4]). The value range of char
+              // type: [-128, 127].
               if ((0xFF == __buffer[4]) && (0xFF == __buffer[5]) && (0xFF == __buffer[6])) {
                 UserVar.setFloat(event->TaskIndex, 0, (__buffer[1] * 256) + __buffer[2] + TOUCH_BASE);
                 UserVar.setFloat(event->TaskIndex, 1, __buffer[3]);
                 sendData(event);
 
                 # ifdef P075_DEBUG_LOG
-                String log;
-                log.reserve(70); // Prevent re-allocation
-                log += F("NEXTION075 : code: ");
-                log += __buffer[1];
-                log += ',';
-                log += __buffer[2];
-                log += ',';
-                log += __buffer[3];
-                addLogMove(LOG_LEVEL_INFO, log);
+                addLogMove(LOG_LEVEL_INFO,
+                           strformat(F("NEXTION075 : code: %c,%c,%c"),
+                                     __buffer[1],
+                                     __buffer[2],
+                                     __buffer[3]));
                 # endif // ifdef P075_DEBUG_LOG
               }
             }
@@ -400,10 +370,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
               String tmpString = __buffer;
 
               # ifdef P075_DEBUG_LOG
-              String log;
-              log.reserve(50); // Prevent re-allocation
-              log += concat(F("NEXTION075 : Code = "), tmpString);
-              addLogMove(LOG_LEVEL_INFO, log);
+              addLogMove(LOG_LEVEL_INFO, concat(F("NEXTION075 : Code = "), tmpString));
               # endif // ifdef P075_DEBUG_LOG
 
               int argIndex = tmpString.indexOf(F(",i"));
@@ -411,7 +378,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
 
               if (argIndex) { Vidx = tmpString.substring(argIndex + 2, argEnd); }
 
-              boolean GotPipeCmd = false;
+              bool GotPipeCmd = false;
 
               switch (__buffer[1]) {
                 case 'u':
@@ -445,7 +412,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
                 validFloatFromString(Vidx,   Vidx_f);
                 validFloatFromString(Svalue, Svalue_f);
                 UserVar.setFloat(event->TaskIndex, 0, Vidx_f);
-                UserVar.setFloat(event->TaskIndex, 1, Svalue_f);  
+                UserVar.setFloat(event->TaskIndex, 1, Svalue_f);
                 sendData(event);
 
                 # ifdef P075_DEBUG_LOG
@@ -453,7 +420,7 @@ boolean Plugin_075(uint8_t function, struct EventStruct *event, String& string)
                 log.reserve(80); // Prevent re-allocation
                 log += F("NEXTION075 : Pipe Command Sent: ");
                 log += __buffer;
-                log += formatUserVarNoCheck(event->TaskIndex, 0);
+                log += formatUserVarNoCheck(event, 0);
                 addLogMove(LOG_LEVEL_INFO, log);
                 # endif // ifdef P075_DEBUG_LOG
               }
@@ -481,7 +448,7 @@ void P075_sendCommand(taskIndex_t taskIndex, const char *cmd)
 
   if (!P075_data) { return; }
 
-  if (P075_data->txPin < 0) {
+  if (!validGpio(P075_data->txPin)) {
     addLog(LOG_LEVEL_INFO, F("NEXTION075 : Missing TxD Pin Number, aborted sendCommand"));
   }
   else

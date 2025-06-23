@@ -3,10 +3,14 @@
 
 #if FEATURE_PLUGIN_STATS
 
+PluginStats_Config_t::PluginStats_Config_t(const PluginStats_Config_t& other)
+{
+  setStored(other.getStored());
+}
 
 PluginStats_Config_t & PluginStats_Config_t::operator=(const PluginStats_Config_t& other)
 {
-  stored = other.stored;
+  setStored(other.getStored());
   return *this;
 }
 

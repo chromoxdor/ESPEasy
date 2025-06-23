@@ -11,10 +11,13 @@
 #include "../DataTypes/NetworkMedium.h"
 #include "../DataTypes/NPluginID.h"
 #include "../DataTypes/PluginID.h"
-#include "../DataTypes/TaskEnabledState.h"
+//#include "../DataTypes/TaskEnabledState.h"
 #include "../DataTypes/TimeSource.h"
 #include "../Globals/Plugins.h"
 
+#ifdef ESP32
+#include <hal/spi_types.h>
+#endif
 
 //we disable SPI if not defined
 #ifndef DEFAULT_SPI
@@ -179,11 +182,20 @@ class SettingsStruct_tmpl
   bool WaitWiFiConnect() const { return VariousBits_2.WaitWiFiConnect; }
   void WaitWiFiConnect(bool value) { VariousBits_2.WaitWiFiConnect = value; }
 
+#ifdef ESP32
+  // Toggle between passive/active WiFi scan.
+  bool PassiveWiFiScan() const { return !VariousBits_2.PassiveWiFiScan; }
+  void PassiveWiFiScan(bool value) { VariousBits_2.PassiveWiFiScan = !value; }
+#endif
+
   // Connect to Hidden SSID using channel and BSSID
   // This is much slower, but appears to be needed for some access points 
   // like MikroTik.
   bool HiddenSSID_SlowConnectPerBSSID() const { return !VariousBits_2.HiddenSSID_SlowConnectPerBSSID; }
   void HiddenSSID_SlowConnectPerBSSID(bool value) { VariousBits_2.HiddenSSID_SlowConnectPerBSSID = !value; }
+
+  bool EnableIPv6() const { return !VariousBits_2.EnableIPv6; }
+  void EnableIPv6(bool value) { VariousBits_2.EnableIPv6 = !value; }
 
   // Use Espressif's auto reconnect.
   bool SDK_WiFi_autoreconnect() const { return VariousBits_2.SDK_WiFi_autoreconnect; }
@@ -195,10 +207,28 @@ class SettingsStruct_tmpl
   void DisableRulesCodeCompletion(bool value) { VariousBits_2.DisableRulesCodeCompletion = value; }
   #endif // if FEATURE_RULES_EASY_COLOR_CODE
 
+  #if FEATURE_TARSTREAM_SUPPORT
+  bool DisableSaveConfigAsTar() const { return VariousBits_2.DisableSaveConfigAsTar; }
+  void DisableSaveConfigAsTar(bool value) { VariousBits_2.DisableSaveConfigAsTar = value; }
+  #endif // if FEATURE_TARSTREAM_SUPPORT
+
+  #if FEATURE_TASKVALUE_UNIT_OF_MEASURE
+  bool ShowUnitOfMeasureOnDevicesPage() const { return !VariousBits_2.ShowUnitOfMeasureOnDevicesPage; }
+  void ShowUnitOfMeasureOnDevicesPage(bool value) { VariousBits_2.ShowUnitOfMeasureOnDevicesPage = !value; }
+  #endif // if FEATURE_TASKVALUE_UNIT_OF_MEASURE
 
   // Flag indicating whether all task values should be sent in a single event or one event per task value (default behavior)
   bool CombineTaskValues_SingleEvent(taskIndex_t taskIndex) const;
   void CombineTaskValues_SingleEvent(taskIndex_t taskIndex, bool value);
+
+  #if FEATURE_STRING_VARIABLES
+  bool ShowDerivedTaskValues(taskIndex_t taskIndex) const;
+  void ShowDerivedTaskValues(taskIndex_t taskIndex, bool value);
+  bool EventAndLogDerivedTaskValues(taskIndex_t taskIndex) const;
+  void EventAndLogDerivedTaskValues(taskIndex_t taskIndex, bool value);
+  bool SendDerivedTaskValues(taskIndex_t taskIndex) const;
+  void SendDerivedTaskValues(taskIndex_t taskIndex, bool value);
+  #endif // if FEATURE_STRING_VARIABLES
 
   bool DoNotStartAP() const  { return VariousBits_1.DoNotStartAP; }
   void DoNotStartAP(bool value) { VariousBits_1.DoNotStartAP = value; }
@@ -285,6 +315,10 @@ public:
 
   bool getSPI_pins(int8_t spi_gpios[3]) const;
 
+  #ifdef ESP32
+  spi_host_device_t getSPI_host() const;
+  #endif
+
   // Return true when pin is one of the SPI pins and SPI is enabled
   bool isSPI_pin(int8_t pin) const;
 
@@ -295,7 +329,26 @@ public:
   bool isI2C_pin(int8_t pin) const;
 
   // Return true if I2C settings are correct
-  bool isI2CEnabled() const;
+  bool isI2CEnabled(uint8_t i2cBus) const;
+
+  uint8_t getI2CInterface(taskIndex_t TaskIndex) const;
+  int8_t getI2CSdaPin(uint8_t i2cBus) const;
+  int8_t getI2CSclPin(uint8_t i2cBus) const;
+  uint32_t getI2CClockSpeed(uint8_t i2cBus) const;
+  uint32_t getI2CClockSpeedSlow(uint8_t i2cBus) const;
+  uint32_t getI2CClockStretch(uint8_t i2cBus) const;
+  
+  #if FEATURE_I2C_MULTIPLE
+  uint8_t getI2CInterfaceRTC() const;
+  uint8_t getI2CInterfaceWDT() const;
+  uint8_t getI2CInterfacePCFMCP() const;
+  #endif // if FEATURE_I2C_MULTIPLE
+
+  #if FEATURE_I2CMULTIPLEXER
+  int8_t getI2CMultiplexerType(uint8_t i2cBus) const;
+  int8_t getI2CMultiplexerAddr(uint8_t i2cBus) const;
+  int8_t getI2CMultiplexerResetPin(uint8_t i2cBus) const;
+  #endif // if FEATURE_I2CMULTIPLEXER
 
   // Return true when pin is one of the fixed Ethernet pins and Ethernet is enabled
   bool isEthernetPin(int8_t pin) const;
@@ -313,6 +366,26 @@ public:
   pluginID_t getPluginID_for_task(taskIndex_t taskIndex) const;
 
   void forceSave() { memset(md5, 0, 16); }
+
+  uint32_t getVariousBits1() const {
+    uint32_t res;
+    memcpy(&res, &VariousBits_1, sizeof(VariousBits_1));
+    return res;    
+  }
+
+  void setVariousBits1(uint32_t value) {
+    memcpy(&VariousBits_1, &value, sizeof(VariousBits_1));
+  }
+
+  uint32_t getVariousBits2() const {
+    uint32_t res;
+    memcpy(&res, &VariousBits_2, sizeof(VariousBits_2));
+    return res;    
+  }
+
+  void setVariousBits2(uint32_t value) {
+    memcpy(&VariousBits_2, &value, sizeof(VariousBits_2));
+  }
 
 
   unsigned long PID = 0;
@@ -360,7 +433,25 @@ public:
   uint8_t       Notification[NOTIFICATION_MAX] = {0}; //notifications, point to a NPLUGIN id
   // FIXME TD-er: Must change to pluginID_t, but then also another check must be added since changing the pluginID_t will also render settings incompatible
   uint8_t       TaskDeviceNumber[N_TASKS] = {0}; // The "plugin number" set at as task (e.g. 4 for P004_dallas)
-  unsigned int  OLD_TaskDeviceID[N_TASKS] = {0};  //UNUSED: this can be reused
+  int8_t        Pin_i2c2_sda = DEFAULT_PIN_I2C2_SDA; // From here, storage borrowed from OLD_TaskDeviceID array
+  int8_t        Pin_i2c2_scl = DEFAULT_PIN_I2C2_SCL;
+  int8_t        Pin_i2c3_sda = DEFAULT_PIN_I2C3_SDA;
+  int8_t        Pin_i2c3_scl = DEFAULT_PIN_I2C3_SCL;
+  uint32_t      I2C2_clockSpeed = DEFAULT_I2C_CLOCK_SPEED;
+  uint32_t      I2C2_clockSpeed_Slow = DEFAULT_I2C_CLOCK_SPEED_SLOW;
+  uint32_t      I2C3_clockSpeed = DEFAULT_I2C_CLOCK_SPEED;
+  uint32_t      I2C3_clockSpeed_Slow = DEFAULT_I2C_CLOCK_SPEED_SLOW;
+  uint16_t      I2C_peripheral_bus = 0;
+  int8_t        I2C2_Multiplexer_Type = I2C_MULTIPLEXER_NONE;
+  int8_t        I2C2_Multiplexer_Addr = -1;
+  int8_t        I2C2_Multiplexer_ResetPin = -1;
+  int8_t        I2C3_Multiplexer_Type = I2C_MULTIPLEXER_NONE;
+  int8_t        I2C3_Multiplexer_Addr = -1;
+  int8_t        I2C3_Multiplexer_ResetPin = -1;
+  unsigned int  OLD_TaskDeviceID[N_TASKS - 7] = {0};  //UNUSED: this can be reused
+
+  // FIXME TD-er: When used on ESP8266, this conversion union may not work
+  // It might work as it is 32-bit in size.
   union {
     struct {
       int8_t        TaskDevicePin1[N_TASKS];
@@ -374,6 +465,9 @@ public:
   int16_t       TaskDevicePluginConfig[N_TASKS][PLUGIN_CONFIGVAR_MAX]{};
   boolean       TaskDevicePin1Inversed[N_TASKS] = {0};
   float         TaskDevicePluginConfigFloat[N_TASKS][PLUGIN_CONFIGFLOATVAR_MAX]{};
+
+  // FIXME TD-er: When used on ESP8266, this conversion union may not work
+  // It might work as it is 32-bit in size.
   union {
     int32_t  TaskDevicePluginConfigLong[N_TASKS][PLUGIN_CONFIGLONGVAR_MAX];
     uint32_t TaskDevicePluginConfigULong[N_TASKS][PLUGIN_CONFIGLONGVAR_MAX]{};
@@ -404,45 +498,43 @@ public:
   //TODO: document config.dat somewhere here
   float         Latitude = 0.0f;
   float         Longitude = 0.0f;
-  union {
-    // VariousBits1 defaults to 0, keep in mind when adding bit lookups.
-    struct {
-       uint32_t unused_00                    : 1;  // Bit 00
-       uint32_t appendUnitToHostname         : 1;  // Bit 01  Inverted
-       uint32_t unused_02                    : 1;  // Bit 02 uniqueMQTTclientIdReconnect_unused
-       uint32_t OldRulesEngine               : 1;  // Bit 03  Inverted
-       uint32_t ForceWiFi_bg_mode            : 1;  // Bit 04
-       uint32_t WiFiRestart_connection_lost  : 1;  // Bit 05
-       uint32_t EcoPowerMode                 : 1;  // Bit 06
-       uint32_t WifiNoneSleep                : 1;  // Bit 07
-       uint32_t gratuitousARP                : 1;  // Bit 08  Inverted
-       uint32_t TolerantLastArgParse         : 1;  // Bit 09
-       uint32_t SendToHttp_ack               : 1;  // Bit 10
-       uint32_t UseESPEasyNow                : 1;  // Bit 11
-       uint32_t IncludeHiddenSSID            : 1;  // Bit 12
-       uint32_t UseMaxTXpowerForSending      : 1;  // Bit 13
-       uint32_t ApDontForceSetup             : 1;  // Bit 14
-       uint32_t unused_15                    : 1;  // Bit 15   was used by PeriodicalScanWiFi
-       uint32_t JSONBoolWithoutQuotes        : 1;  // Bit 16
-       uint32_t DoNotStartAP                 : 1;  // Bit 17
-       uint32_t UseAlternativeDeepSleep      : 1;  // Bit 18
-       uint32_t UseLastWiFiFromRTC           : 1;  // Bit 19
-       uint32_t EnableTimingStats            : 1;  // Bit 20
-       uint32_t AllowTaskValueSetAllPlugins  : 1;  // Bit 21
-       uint32_t EnableClearHangingI2Cbus     : 1;  // Bit 22
-       uint32_t EnableRAMTracking            : 1;  // Bit 23
-       uint32_t EnableRulesCaching           : 1;  // Bit 24  Inverted
-       uint32_t EnableRulesEventReorder      : 1;  // Bit 25  Inverted
-       uint32_t AllowOTAUnlimited            : 1;  // Bit 26
-       uint32_t SendToHTTP_follow_redirects  : 1;  // Bit 27
-       uint32_t CssMode                      : 2;  // Bit 28
-//       uint32_t unused_29                  : 1;  // Bit 29
-       uint32_t CheckI2Cdevice               : 1;  // Bit 30  Inverted
-       uint32_t DoNotUse_31                  : 1;  // Bit 31  Was used to detect whether various bits were even set
 
-    } VariousBits_1;
-    uint32_t      VariousBits1 = 0;
-  };
+  // VariousBits_1 defaults to 0, keep in mind when adding bit lookups.
+  struct {
+      uint32_t unused_00                    : 1;  // Bit 00
+      uint32_t appendUnitToHostname         : 1;  // Bit 01  Inverted
+      uint32_t unused_02                    : 1;  // Bit 02 uniqueMQTTclientIdReconnect_unused
+      uint32_t OldRulesEngine               : 1;  // Bit 03  Inverted
+      uint32_t ForceWiFi_bg_mode            : 1;  // Bit 04
+      uint32_t WiFiRestart_connection_lost  : 1;  // Bit 05
+      uint32_t EcoPowerMode                 : 1;  // Bit 06
+      uint32_t WifiNoneSleep                : 1;  // Bit 07
+      uint32_t gratuitousARP                : 1;  // Bit 08  Inverted
+      uint32_t TolerantLastArgParse         : 1;  // Bit 09
+      uint32_t SendToHttp_ack               : 1;  // Bit 10
+      uint32_t UseESPEasyNow                : 1;  // Bit 11
+      uint32_t IncludeHiddenSSID            : 1;  // Bit 12
+      uint32_t UseMaxTXpowerForSending      : 1;  // Bit 13
+      uint32_t ApDontForceSetup             : 1;  // Bit 14
+      uint32_t unused_15                    : 1;  // Bit 15   was used by PeriodicalScanWiFi
+      uint32_t JSONBoolWithoutQuotes        : 1;  // Bit 16
+      uint32_t DoNotStartAP                 : 1;  // Bit 17
+      uint32_t UseAlternativeDeepSleep      : 1;  // Bit 18
+      uint32_t UseLastWiFiFromRTC           : 1;  // Bit 19
+      uint32_t EnableTimingStats            : 1;  // Bit 20
+      uint32_t AllowTaskValueSetAllPlugins  : 1;  // Bit 21
+      uint32_t EnableClearHangingI2Cbus     : 1;  // Bit 22
+      uint32_t EnableRAMTracking            : 1;  // Bit 23
+      uint32_t EnableRulesCaching           : 1;  // Bit 24  Inverted
+      uint32_t EnableRulesEventReorder      : 1;  // Bit 25  Inverted
+      uint32_t AllowOTAUnlimited            : 1;  // Bit 26
+      uint32_t SendToHTTP_follow_redirects  : 1;  // Bit 27
+      uint32_t CssMode                      : 2;  // Bit 28
+//       uint32_t unused_29                  : 1;  // Bit 29
+      uint32_t CheckI2Cdevice               : 1;  // Bit 30  Inverted
+      uint32_t DoNotUse_31                  : 1;  // Bit 31  Was used to detect whether various bits were even set
+
+  } VariousBits_1;    //-V730
 
   uint32_t      ResetFactoryDefaultPreference = 0; // Do not clear this one in the clearAll()
   uint32_t      I2C_clockSpeed = 400000;
@@ -450,10 +542,10 @@ public:
   uint16_t      SyslogPort = DEFAULT_SYSLOG_PORT;
 
   int8_t          ETH_Phy_Addr = -1;
-  int8_t          ETH_Pin_mdc = -1;
-  int8_t          ETH_Pin_mdio = -1;
-  int8_t          ETH_Pin_power = -1;
-  EthPhyType_t    ETH_Phy_Type = EthPhyType_t::LAN8710;
+  int8_t          ETH_Pin_mdc_cs = -1;
+  int8_t          ETH_Pin_mdio_irq = -1;
+  int8_t          ETH_Pin_power_rst = -1;
+  EthPhyType_t    ETH_Phy_Type = EthPhyType_t::notSet;
   EthClockMode_t  ETH_Clock_Mode = EthClockMode_t::Ext_crystal_osc;
   uint8_t         ETH_IP[4] = {0};
   uint8_t         ETH_Gateway[4] = {0};
@@ -481,46 +573,43 @@ public:
   // Do not rename or move this checksum.
   // Checksum calculation will work "around" this
   uint8_t       md5[16]{}; // Store checksum of the settings.
-  union {
-    // VariousBits2 defaults to 0, keep in mind when adding bit lookups.
-    struct {
-      uint32_t WaitWiFiConnect                  : 1; // Bit 00
-      uint32_t SDK_WiFi_autoreconnect           : 1; // Bit 01
-      uint32_t DisableRulesCodeCompletion       : 1; // Bit 02
-      uint32_t HiddenSSID_SlowConnectPerBSSID   : 1; // Bit 03  // inverted
-      uint32_t unused_04                        : 1; // Bit 04
-      uint32_t unused_05                        : 1; // Bit 05
-      uint32_t unused_06                        : 1; // Bit 06
-      uint32_t unused_07                        : 1; // Bit 07
-      uint32_t unused_08                        : 1; // Bit 08
-      uint32_t unused_09                        : 1; // Bit 09
-      uint32_t unused_10                        : 1; // Bit 10
-      uint32_t unused_11                        : 1; // Bit 11
-      uint32_t unused_12                        : 1; // Bit 12
-      uint32_t unused_13                        : 1; // Bit 13
-      uint32_t unused_14                        : 1; // Bit 14
-      uint32_t unused_15                        : 1; // Bit 15
-      uint32_t unused_16                        : 1; // Bit 16
-      uint32_t unused_17                        : 1; // Bit 17
-      uint32_t unused_18                        : 1; // Bit 18
-      uint32_t unused_19                        : 1; // Bit 19
-      uint32_t unused_20                        : 1; // Bit 20
-      uint32_t unused_21                        : 1; // Bit 21
-      uint32_t unused_22                        : 1; // Bit 22
-      uint32_t unused_23                        : 1; // Bit 23
-      uint32_t unused_24                        : 1; // Bit 24
-      uint32_t unused_25                        : 1; // Bit 25
-      uint32_t unused_26                        : 1; // Bit 26
-      uint32_t unused_27                        : 1; // Bit 27
-      uint32_t unused_28                        : 1; // Bit 28
-      uint32_t unused_29                        : 1; // Bit 29
-      uint32_t unused_30                        : 1; // Bit 30
-      uint32_t unused_31                        : 1; // Bit 31
 
-    } VariousBits_2;
-    uint32_t      VariousBits2 = 0;
-  };
+  // VariousBits_2 defaults to 0, keep in mind when adding bit lookups.
+  struct {
+    uint32_t WaitWiFiConnect                  : 1; // Bit 00
+    uint32_t SDK_WiFi_autoreconnect           : 1; // Bit 01
+    uint32_t DisableRulesCodeCompletion       : 1; // Bit 02
+    uint32_t HiddenSSID_SlowConnectPerBSSID   : 1; // Bit 03  // inverted
+    uint32_t EnableIPv6                       : 1; // Bit 04  // inverted
+    uint32_t DisableSaveConfigAsTar           : 1; // Bit 05
+    uint32_t PassiveWiFiScan                  : 1; // Bit 06  // inverted
+    uint32_t ShowUnitOfMeasureOnDevicesPage   : 1; // Bit 07  // inverted
+    uint32_t unused_08                        : 1; // Bit 08
+    uint32_t unused_09                        : 1; // Bit 09
+    uint32_t unused_10                        : 1; // Bit 10
+    uint32_t unused_11                        : 1; // Bit 11
+    uint32_t unused_12                        : 1; // Bit 12
+    uint32_t unused_13                        : 1; // Bit 13
+    uint32_t unused_14                        : 1; // Bit 14
+    uint32_t unused_15                        : 1; // Bit 15
+    uint32_t unused_16                        : 1; // Bit 16
+    uint32_t unused_17                        : 1; // Bit 17
+    uint32_t unused_18                        : 1; // Bit 18
+    uint32_t unused_19                        : 1; // Bit 19
+    uint32_t unused_20                        : 1; // Bit 20
+    uint32_t unused_21                        : 1; // Bit 21
+    uint32_t unused_22                        : 1; // Bit 22
+    uint32_t unused_23                        : 1; // Bit 23
+    uint32_t unused_24                        : 1; // Bit 24
+    uint32_t unused_25                        : 1; // Bit 25
+    uint32_t unused_26                        : 1; // Bit 26
+    uint32_t unused_27                        : 1; // Bit 27
+    uint32_t unused_28                        : 1; // Bit 28
+    uint32_t unused_29                        : 1; // Bit 29
+    uint32_t unused_30                        : 1; // Bit 30
+    uint32_t unused_31                        : 1; // Bit 31
 
+  } VariousBits_2;  //-V730
 
   uint8_t       console_serial_port = DEFAULT_CONSOLE_PORT; 
   int8_t        console_serial_rxpin = DEFAULT_CONSOLE_PORT_RXPIN;

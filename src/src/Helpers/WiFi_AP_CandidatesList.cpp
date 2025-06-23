@@ -62,9 +62,9 @@ void WiFi_AP_CandidatesList::load_knownCredentials() {
         known.emplace_back(index, ssid);
         if (SettingsIndexMatchCustomCredentials(index)) {
           if (SettingsIndexMatchEmergencyFallback(index)) {
-            known.back().isEmergencyFallback = true;
+            known.back().bits.isEmergencyFallback = true;
           } else {
-            known.back().lowPriority = true;
+            known.back().bits.lowPriority = true;
           }
         }
         ++index;
@@ -136,6 +136,7 @@ void WiFi_AP_CandidatesList::after_process_WiFiscan() {
   scanned_new.sort();
   scanned_new.unique();
   _mustLoadCredentials = true;
+  load_knownCredentials();
   WiFi.scanDelete();
   attemptsLeft = 1;
 }
@@ -155,7 +156,7 @@ bool WiFi_AP_CandidatesList::getNext(bool scanAllowed) {
   currentCandidate = candidates.front();
   bool mustPop = true;
 
-  if (currentCandidate.isHidden) {
+  if (currentCandidate.bits.isHidden) {
     // Iterate over the known credentials to try them all
     // Hidden SSID stations do not broadcast their SSID, so we must fill it in ourselves.
     if (known_it != known.end()) {
@@ -171,9 +172,9 @@ bool WiFi_AP_CandidatesList::getNext(bool scanAllowed) {
 
   if (mustPop) {
     if (attemptsLeft == 0) {
-      if (currentCandidate.isHidden) {
+      if (currentCandidate.bits.isHidden) {
         // We tried to connect to hidden SSIDs in 1 run, so pop all hidden candidates.
-        for (auto cand_it = candidates.begin(); cand_it != candidates.end() && cand_it->isHidden; ) {
+        for (auto cand_it = candidates.begin(); cand_it != candidates.end() && cand_it->bits.isHidden; ) {
           cand_it = candidates.erase(cand_it);
         }
       } else {
@@ -247,6 +248,12 @@ void WiFi_AP_CandidatesList::markCurrentConnectionStable() {
 }
 
 int8_t WiFi_AP_CandidatesList::scanComplete() const {
+  const int8_t scanCompleteStatus = WiFi.scanComplete();
+  if (scanCompleteStatus == -1) {
+    // Still scanning
+    return scanCompleteStatus;
+  }
+
   size_t found = 0;
   for (auto scan = scanned.begin(); scan != scanned.end(); ++scan) {
     if (!scan->expired()) {
@@ -258,14 +265,13 @@ int8_t WiFi_AP_CandidatesList::scanComplete() const {
       ++found;
     }
   }
-  if (found > 0) {    
-    return found;
+  if (found == 0) {
+    if (scanCompleteStatus == -2) {
+      // Not triggered
+      return scanCompleteStatus;
+    }
   }
-  const int8_t scanCompleteStatus = WiFi.scanComplete();
-  if (scanCompleteStatus <= 0) {
-    return scanCompleteStatus;
-  }
-  return 0;
+  return found;
 }
 
 bool WiFi_AP_CandidatesList::SettingsIndexMatchCustomCredentials(uint8_t index)
@@ -334,7 +340,7 @@ void WiFi_AP_CandidatesList::loadCandidatesFromScanned() {
     if (scan->expired()) {
       scan = scanned.erase(scan);
     } else {
-      if (scan->isHidden) {
+      if (scan->bits.isHidden) {
         if (Settings.IncludeHiddenSSID()) {
           if (SecuritySettings.hasWiFiCredentials()) {
             candidates.push_back(*scan);
@@ -345,8 +351,8 @@ void WiFi_AP_CandidatesList::loadCandidatesFromScanned() {
           if (scan->ssid.equals(kn_it->ssid)) {
             WiFi_AP_Candidate tmp = *scan;
             tmp.index = kn_it->index;
-            tmp.lowPriority = kn_it->lowPriority;
-            tmp.isEmergencyFallback = kn_it->isEmergencyFallback;
+            tmp.bits.lowPriority = kn_it->bits.lowPriority;
+            tmp.bits.isEmergencyFallback = kn_it->bits.isEmergencyFallback;
 
             if (tmp.usable()) {
               candidates.push_back(tmp);

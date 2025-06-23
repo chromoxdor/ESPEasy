@@ -1,7 +1,7 @@
 #include "../DataStructs/UserVarStruct.h"
 
+#include "../DataStructs/ESPEasy_EventStruct.h"
 #include "../DataStructs/TimingStats.h"
-
 #include "../ESPEasyCore/ESPEasy_Log.h"
 #include "../Globals/Cache.h"
 #include "../Globals/Plugins.h"
@@ -329,32 +329,40 @@ uint32_t UserVarStruct::compute_CRC32() const
 
 void UserVarStruct::clear_computed(taskIndex_t taskIndex)
 {
-  if (!Cache.hasFormula(taskIndex)) {
-    auto it = _computed.find(taskIndex);
+  auto it = _computed.find(taskIndex);
 
-    if (it != _computed.end()) {
-      _computed.erase(it);
-    }
+  if (it != _computed.end()) {
+    _computed.erase(it);
   }
-#ifndef LIMIT_BUILD_SIZE
 
   for (taskVarIndex_t varNr = 0; validTaskVarIndex(varNr); ++varNr) {
     const uint16_t key = makeWord(taskIndex, varNr);
-    auto it            = _preprocessedFormula.find(key);
+#ifndef LIMIT_BUILD_SIZE
+    {
+      auto it            = _preprocessedFormula.find(key);
 
-    if (it != _preprocessedFormula.end()) {
-      _preprocessedFormula.erase(it);
+      if (it != _preprocessedFormula.end()) {
+        _preprocessedFormula.erase(it);
+      }
+    }
+#endif // ifndef LIMIT_BUILD_SIZE
+    {
+      auto it            = _prevValue.find(key);
+
+      if (it != _prevValue.end()) {
+        _prevValue.erase(it);
+      }
     }
   }
-#endif // ifndef LIMIT_BUILD_SIZE
 }
 
 void UserVarStruct::markPluginRead(taskIndex_t taskIndex)
 {
+  struct EventStruct TempEvent(taskIndex);
   for (taskVarIndex_t varNr = 0; validTaskVarIndex(varNr); ++varNr) {
     if (Cache.hasFormula_with_prevValue(taskIndex, varNr)) {
       const uint16_t key = makeWord(taskIndex, varNr);
-      _prevValue[key] = formatUserVarNoCheck(taskIndex, varNr);
+      _prevValue[key] = formatUserVarNoCheck(&TempEvent, varNr);
     }
   }
 }
@@ -371,7 +379,10 @@ const TaskValues_Data_t * UserVarStruct::getRawOrComputed(
     if ((it == _computed.end()) || !it->second.isSet(varNr)) {
       // Try to compute values which do have a formula but not yet a 'computed' value cached.
       // FIXME TD-er: This may yield unexpected results when formula contains references to %pvalue%
-      const int nrDecimals = Cache.getTaskDeviceValueDecimals(taskIndex, varNr);
+
+
+      // Should not apply set nr. of decimals when calculating a formula
+      const uint8_t nrDecimals = 254;
       const String value   = getAsString(taskIndex, varNr, sensorType, nrDecimals, true);
 
       constexpr bool applyNow = true;
@@ -403,7 +414,9 @@ bool UserVarStruct::applyFormula(taskIndex_t    taskIndex,
     return false;
   }
 
-  if (!applyNow && !Cache.hasFormula_with_prevValue(taskIndex, varNr)) {
+  const bool formula_has_prevvalue = Cache.hasFormula_with_prevValue(taskIndex, varNr);
+
+  if (!applyNow && !formula_has_prevvalue) {
     // Must check whether we can delay calculations until it is read for the first time.
     auto it = _computed.find(taskIndex);
 
@@ -418,18 +431,30 @@ bool UserVarStruct::applyFormula(taskIndex_t    taskIndex,
   String formula = getPreprocessedFormula(taskIndex, varNr);
   bool   res     = true;
 
-  if (!formula.isEmpty())
+  if (!formula.isEmpty()
+      #if FEATURE_STRING_VARIABLES
+      && formula[1] != TASK_VALUE_PRESENTATION_PREFIX_CHAR
+      #endif // FEATURE_STRING_VARIABLES
+     ) // Ignore display-formula
   {
     START_TIMER;
 
+    formula.replace(F("%value%"), value);
+
     // TD-er: Should we use the set nr of decimals here, or not round at all?
     // See: https://github.com/letscontrolit/ESPEasy/issues/3721#issuecomment-889649437
-    if (formula.indexOf(F("%pvalue%")) != -1) {
+    if (formula_has_prevvalue) {
       const String prev_str = getPreviousValue(taskIndex, varNr, sensorType);
       formula.replace(F("%pvalue%"), prev_str.isEmpty() ? value : prev_str);
+      /*
+      addLog(LOG_LEVEL_INFO, 
+        strformat(
+          F("pvalue: %s, value: %s, formula: %s"), 
+          prev_str.c_str(), 
+          value.c_str(),
+          formula.c_str()));
+      */
     }
-
-    formula.replace(F("%value%"), value);
 
     ESPEASY_RULES_FLOAT_TYPE result{};
 
@@ -450,7 +475,11 @@ bool UserVarStruct::applyFormulaAndSet(taskIndex_t                     taskIndex
                                        const ESPEASY_RULES_FLOAT_TYPE& value,
                                        Sensor_VType                    sensorType)
 {
-  if (!Cache.hasFormula(taskIndex, varNr)) {
+  if (!Cache.hasFormula(taskIndex, varNr)
+      #if FEATURE_STRING_VARIABLES
+      || Cache.getTaskDeviceFormula(taskIndex, varNr)[1] == TASK_VALUE_PRESENTATION_PREFIX_CHAR
+      #endif // if FEATURE_STRING_VARIABLES
+     ) {
     _rawData[taskIndex].set(varNr, value, sensorType);
     return true;
   }
@@ -459,7 +488,9 @@ bool UserVarStruct::applyFormulaAndSet(taskIndex_t                     taskIndex
   TaskValues_Data_t tmp;
 
   tmp.set(varNr, value, sensorType);
-  const uint8_t nrDecimals = Cache.getTaskDeviceValueDecimals(taskIndex, varNr);
+
+  // Should not apply set nr. of decimals when calculating a formula
+  const uint8_t nrDecimals = 254;
   const String  value_str  = tmp.getAsString(varNr, sensorType, nrDecimals);
 
   constexpr bool applyNow = false;
@@ -482,7 +513,11 @@ String UserVarStruct::getPreprocessedFormula(taskIndex_t taskIndex, taskVarIndex
   auto it            = _preprocessedFormula.find(key);
 
   if (it == _preprocessedFormula.end()) {
-    _preprocessedFormula[key] = RulesCalculate_t::preProces(Cache.getTaskDeviceFormula(taskIndex, varNr));
+    _preprocessedFormula.emplace(
+      std::make_pair(
+        key, 
+        RulesCalculate_t::preProces(Cache.getTaskDeviceFormula(taskIndex, varNr))
+        ));
   }
   return _preprocessedFormula[key];
 #else // ifndef LIMIT_BUILD_SIZE

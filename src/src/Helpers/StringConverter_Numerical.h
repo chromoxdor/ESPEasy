@@ -20,7 +20,14 @@ bool          string2float(const String& string,
    Workaround for removing trailing white space when String() converts a float with 0 decimals
 \*********************************************************************************************/
 String toString(const float& value,
-                unsigned int decimalPlaces = 2);
+                unsigned int decimalPlaces = 2,
+                bool         trimTrailingZeros = false);
+
+bool toValidString(String& str,
+                  const float& value,
+                  unsigned int decimalPlaces = 2,
+                  bool         trimTrailingZeros = false);
+  
 
 String ull2String(uint64_t value,
                   uint8_t  base = 10);
@@ -32,12 +39,15 @@ String trimTrailingZeros(const String& value);
 
 String toStringNoZero(int64_t value);
 
-#if FEATURE_USE_DOUBLE_AS_ESPEASY_RULES_FLOAT_TYPE
 String doubleToString(const double& value,
                       unsigned int  decimalPlaces     = 2,
                       bool          trimTrailingZeros = false);
-#endif
 
+bool  doubleToValidString(String& str,
+                        const double& value,
+                        unsigned int  decimalPlaces     = 2,
+                        bool          trimTrailingZeros = false);
+  
 String floatToString(const float& value,
                       unsigned int  decimalPlaces     = 2,
                       bool          trimTrailingZeros = false);
