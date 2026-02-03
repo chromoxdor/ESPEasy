@@ -37,7 +37,7 @@ void initAnalogWrite()
 
   for (uint8_t x = 0; x < nrLedChannelPins; x++) {
     ledChannelPin[x]  = -1;
-    ledChannelFreq[x] = ledcSetup(x, 1000, 10); // Clear the channel
+    ledChannelFreq[x] = ledcSetup(x, 1000, 16); // Clear the channel
   }
   # endif // if ESP_IDF_VERSION_MAJOR < 5
   #endif // if defined(ESP32)
@@ -121,7 +121,7 @@ int8_t attachLedChannel(int pin, uint32_t frequency, uint8_t resolution)
 
   if (mustSetup) {
     // setup channel to resolution nr of bits and set frequency.
-    ledChannelFreq[ledChannel] = ledcSetup(ledChannel, ledChannelFreq[ledChannel], 10);
+    ledChannelFreq[ledChannel] = ledcSetup(ledChannel, ledChannelFreq[ledChannel], 16);
     ledChannelPin[ledChannel]  = pin; // store pin nr
     ledcAttachPin(pin, ledChannel);   // attach to this pin
     //    pinMode(pin, OUTPUT);
@@ -216,7 +216,7 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
     return false;
   }
   portStatusStruct tempStatus;
-  if (frequency == 0) frequency = 1000;
+  if (frequency == 0) frequency = 900;
 
   // FIXME TD-er: PWM values cannot be stored very well in the portStatusStruct.
   key = createKey(PLUGIN_GPIO, gpio);
@@ -316,7 +316,7 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
 
     while (i--) {
       curr_value += step_value;
-      const int16_t new_value = curr_value / resolution_factor;
+      const int32_t new_value = curr_value / resolution_factor;
             # if defined(ESP8266)
       analogWrite(gpio, new_value);
             # endif // if defined(ESP8266)

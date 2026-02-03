@@ -10,7 +10,7 @@
 #ifndef ESPEASY_PWM_DEFAULT_FREQUENCY
 # ifdef ESP32
 #  if ESP_IDF_VERSION_MAJOR >= 5
-#   define ESPEASY_PWM_DEFAULT_FREQUENCY 1000
+#   define ESPEASY_PWM_DEFAULT_FREQUENCY 900
 #  else // if ESP_IDF_VERSION_MAJOR >= 5
 #   define ESPEASY_PWM_DEFAULT_FREQUENCY 0
 #  endif // if ESP_IDF_VERSION_MAJOR >= 5
@@ -27,7 +27,7 @@ void initAnalogWrite();
 
 int8_t   attachLedChannel(int      pin,
                           uint32_t frequency  = ESPEASY_PWM_DEFAULT_FREQUENCY,
-                          uint8_t  resolution = 10);
+                          uint8_t  resolution = 16);
 void     detachLedChannel(int pin);
 uint32_t analogWriteESP32(int      pin,
                           int      value,
