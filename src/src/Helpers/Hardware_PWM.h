@@ -30,7 +30,7 @@ int8_t   attachLedChannel(int      pin,
                           uint8_t  resolution = 16);
 void     detachLedChannel(int pin);
 uint32_t analogWriteESP32(int      pin,
-                          int      value,
+                          uint16_t      value,
                           uint32_t frequency = ESPEASY_PWM_DEFAULT_FREQUENCY);
 #endif // if defined(ESP32)
 

@@ -170,7 +170,7 @@ void detachLedChannel(int pin)
 
 # endif // if ESP_IDF_VERSION_MAJOR < 5
 
-uint32_t analogWriteESP32(int pin, int value, uint32_t frequency)
+uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
 {
   if (value == 0) {
     detachLedChannel(pin);
@@ -178,7 +178,7 @@ uint32_t analogWriteESP32(int pin, int value, uint32_t frequency)
   }
 
   // find existing channel if this pin has been used before
-  uint8_t resolution = 10;
+  uint8_t resolution = 16;
 
   value = adapt_ledc_frequency_resolution_duty(frequency, resolution, value);
   int8_t ledChannel = attachLedChannel(pin, frequency, resolution);
@@ -198,7 +198,7 @@ uint32_t analogWriteESP32(int pin, int value, uint32_t frequency)
 #endif // if defined(ESP32)
 
 bool set_Gpio_PWM_pct(int gpio, float dutyCycle_f, uint32_t frequency) {
-  uint32_t dutyCycle = dutyCycle_f * 10.23f;
+  uint32_t dutyCycle = dutyCycle_f * 655.35f;
 
   return set_Gpio_PWM(gpio, dutyCycle, frequency);
 }
@@ -239,7 +239,7 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
   {
     analogWriteESP32(gpio, dutyCycle, frequency);
   } else {
-    uint8_t  resolution  = 10;
+    uint16_t  resolution  = 16;
     uint32_t start_duty  = 0;
     uint32_t target_duty = dutyCycle;
 
@@ -306,7 +306,7 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
     // Check to see if pin was already set to PWM.
     // If not, then set previous duty cycle close to logic pin state.
     if (prev_mode != PIN_MODE_PWM) {
-      prev_value = (tempStatus.getValue() == 0) ? 0 : 1023;
+      prev_value = (tempStatus.getValue() == 0) ? 0 : 65535;
     }
 
     const int32_t step_value = ((static_cast<int32_t>(dutyCycle) - prev_value) * resolution_factor) / static_cast<int32_t>(fadeDuration_ms);
