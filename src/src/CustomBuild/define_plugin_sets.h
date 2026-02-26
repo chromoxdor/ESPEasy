@@ -55,7 +55,9 @@ To create/register a plugin, you have to :
         #define WEBSERVER_INCLUDE_JS
     #endif
     #ifndef WEBSERVER_LOG
+    #ifndef PLUGIN_BUILD_MINIMAL_OTA
         #define WEBSERVER_LOG
+    #endif
     #endif
     #ifndef WEBSERVER_JSON
         #define WEBSERVER_JSON
@@ -102,6 +104,9 @@ To create/register a plugin, you have to :
     #endif
     #ifndef WEBSERVER_HARDWARE
         #define WEBSERVER_HARDWARE
+    #endif
+    #ifndef WEBSERVER_INTERFACES
+        #define WEBSERVER_INTERFACES
     #endif
     #ifndef WEBSERVER_PINSTATES
         #define WEBSERVER_PINSTATES
@@ -2177,6 +2182,10 @@ To create/register a plugin, you have to :
 #ifdef PLUGIN_CLIMATE_A_COLLECTION
   #ifndef PLUGIN_DESCR
     #define PLUGIN_DESCR  "Climate A"
+  #endif
+
+  #ifndef BUILD_NO_DEBUG
+  #define BUILD_NO_DEBUG
   #endif
 
   // Features and plugins cherry picked from stable set
@@ -4461,6 +4470,57 @@ To create/register a plugin, you have to :
 #define FEATURE_COLORIZE_CONSOLE_LOGS 0
 #else
 #define FEATURE_COLORIZE_CONSOLE_LOGS 1
+#endif
+#endif
+
+#ifndef FEATURE_I2C
+  #ifdef ESP32
+    #define FEATURE_I2C  1
+  #else
+    // TODO TD-er: Add check for plugins requiring I2C
+    // Checks:  
+    //  FEATURE_I2CMULTIPLEXER
+    //  FEATURE_PLUGIN_PRIORITY
+    //  FEATURE_I2C_MULTIPLE
+    //  FEATURE_CLEAR_I2C_STUCK
+    //  FEATURE_I2C_GET_ADDRESS
+    //  FEATURE_EXT_RTC
+    //   I2C Watchdog???? Settings.WDI2CAddress
+    #ifdef PLUGIN_BUILD_MINIMAL_OTA
+      #ifdef USES_P180
+        #define FEATURE_I2C  1
+      #else
+        #define FEATURE_I2C  0
+      #endif
+    #else
+      #define FEATURE_I2C  1
+    #endif
+  #endif
+#endif
+
+#if !FEATURE_I2C
+# ifdef WEBSERVER_I2C_SCANNER
+#  undef WEBSERVER_I2C_SCANNER
+# endif
+#endif
+
+#ifndef FEATURE_SPI
+  #if FEATURE_SD
+  #define FEATURE_SPI  1
+  // TODO TD-er: Add check for plugins requiring SPI
+  #else
+  #if defined(USES_NW004) || defined(USES_P039) || defined(USES_P046) || defined(USES_P095) || defined(USES_P096) || defined(USES_P099) || defined(USES_P104) || defined(USES_P111) || defined(USES_P116) || defined(USES_P118) || defined(USES_P125) || defined(USES_P141) || defined(USES_P162) || defined(USES_P172)
+  #define FEATURE_SPI  1
+  #else
+  #define FEATURE_SPI  0
+  #endif
+#endif
+#endif
+
+
+#if !FEATURE_SPI && !FEATURE_I2C
+#ifdef WEBSERVER_INTERFACES
+#undef WEBSERVER_INTERFACES
 #endif
 #endif
 
