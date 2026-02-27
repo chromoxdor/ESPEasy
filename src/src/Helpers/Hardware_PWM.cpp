@@ -168,24 +168,23 @@ void detachLedChannel(int pin) { ledcDetach(pin); }
 
 uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
 {
-  static int lastPin          = -1;
-  static uint32_t lastFreq    = 0;
-  static int8_t   ledChannel = -1;
+  static int lastPin       = -1;
 
   if (value == 0) {
     detachLedChannel(pin);
+    lastPin = -1;
     return 0;
   }
 
   // find existing channel if this pin has been used before
   uint8_t resolution = 16;
 
-  // Only update frequency & attach channel if pin/freq changed
-  if ((lastPin != pin) || (lastFreq != frequency)) {
-    value       = adapt_ledc_frequency_resolution_duty(frequency, resolution, value);
-    ledChannel = attachLedChannel(pin, frequency, resolution);
-    lastPin     = pin;
-    lastFreq    = frequency;
+  // Only update attach channel if pin changed
+  value = adapt_ledc_frequency_resolution_duty(frequency, resolution, value);
+
+  if ((lastPin != pin)) {
+    int8_t ledChannel = attachLedChannel(pin, frequency, resolution);
+    lastPin = pin;
   }
 
   if (ledChannel != -1) {
@@ -193,7 +192,7 @@ uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
     ledcWrite(ledChannel, value);
     return ledChannelFreq[ledChannel];
     # else // if ESP_IDF_VERSION_MAJOR < 5
-    ledcWrite(pin,         value);
+    ledcWrite(pin,        value);
     return ledcReadFreq(pin);
     # endif // if ESP_IDF_VERSION_MAJOR < 5
   }
@@ -261,7 +260,7 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
 
     if (frequency > 0) {
       // Adjust the frequency and resolution to keep them in the range of the used timer frequency.
-      while ((40000000u >> resolution) < frequency && resolution > 7) {
+      while ((80000000u >> resolution) < frequency && resolution > 7) {
         --resolution;
 
         if (start_duty > target_duty) {
