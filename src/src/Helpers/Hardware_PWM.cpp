@@ -25,7 +25,6 @@ uint32_t ledChannelFreq[LEDC_CHANNELS] = { 0 };
 # endif // if ESP_IDF_VERSION_MAJOR < 5
 #endif  // if defined(ESP32)
 
-
 // ********************************************************************************
 // Manage PWM state of GPIO pins.
 // ********************************************************************************
@@ -159,19 +158,20 @@ int8_t attachLedChannel(int pin, uint32_t frequency, uint8_t resolution)
   if (frequency == 0) {
     frequency = ESPEASY_PWM_DEFAULT_FREQUENCY;
   }
-  ledcDetach(pin);  // See: https://github.com/espressif/arduino-esp32/issues/9212
+  ledcDetach(pin); // See: https://github.com/espressif/arduino-esp32/issues/9212
   return ledcAttach(pin, frequency, resolution) ? 0 : -1;
 }
 
-void detachLedChannel(int pin)
-{
-  ledcDetach(pin);
-}
+void detachLedChannel(int pin) { ledcDetach(pin); }
 
 # endif // if ESP_IDF_VERSION_MAJOR < 5
 
 uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
 {
+  static int lastPin          = -1;
+  static uint32_t lastFreq    = 0;
+  static int8_t   ledChannel = -1;
+
   if (value == 0) {
     detachLedChannel(pin);
     return 0;
@@ -180,18 +180,24 @@ uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
   // find existing channel if this pin has been used before
   uint8_t resolution = 16;
 
-  value = adapt_ledc_frequency_resolution_duty(frequency, resolution, value);
-  int8_t ledChannel = attachLedChannel(pin, frequency, resolution);
+  // Only update frequency & attach channel if pin/freq changed
+  if ((lastPin != pin) || (lastFreq != frequency)) {
+    value       = adapt_ledc_frequency_resolution_duty(frequency, resolution, value);
+    ledChannel = attachLedChannel(pin, frequency, resolution);
+    lastPin     = pin;
+    lastFreq    = frequency;
+  }
 
   if (ledChannel != -1) {
     # if ESP_IDF_VERSION_MAJOR < 5
     ledcWrite(ledChannel, value);
     return ledChannelFreq[ledChannel];
     # else // if ESP_IDF_VERSION_MAJOR < 5
-    ledcWrite(pin,        value);
+    ledcWrite(pin,         value);
     return ledcReadFreq(pin);
     # endif // if ESP_IDF_VERSION_MAJOR < 5
   }
+
   return 0;
 }
 
@@ -216,7 +222,8 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
     return false;
   }
   portStatusStruct tempStatus;
-  if (frequency == 0) frequency = 900;
+
+  if (frequency == 0) { frequency = 900; }
 
   // FIXME TD-er: PWM values cannot be stored very well in the portStatusStruct.
   key = createKey(PLUGIN_GPIO, gpio);
@@ -239,7 +246,7 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
   {
     analogWriteESP32(gpio, dutyCycle, frequency);
   } else {
-    uint16_t  resolution  = 16;
+    uint16_t resolution  = 16;
     uint32_t start_duty  = 0;
     uint32_t target_duty = dutyCycle;
 
@@ -276,8 +283,8 @@ bool set_Gpio_PWM(int gpio, uint32_t dutyCycle, uint32_t fadeDuration_ms, uint32
       // Pin not yet attached
       if (!ledcAttach(gpio, frequency, resolution)) {
         addLog(LOG_LEVEL_ERROR, strformat(
-          F("PWM : ledcAttach failed  gpio:%d freq:%d res:%d"),
-          gpio, frequency, resolution));
+                 F("PWM : ledcAttach failed  gpio:%d freq:%d res:%d"),
+                 gpio, frequency, resolution));
         return false;
       }
     }
