@@ -168,24 +168,25 @@ void detachLedChannel(int pin) { ledcDetach(pin); }
 
 uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
 {
-  static int lastPin       = -1;
-  int8_t ledChannel = -1;
+  static int lastPin          = -1;
+  static uint32_t lastFreq    = 0;
+  static int8_t   ledChannel = -1;
 
   if (value == 0) {
     detachLedChannel(pin);
-    lastPin = -1;
+    lastPin          = -1;
     return 0;
   }
 
   // find existing channel if this pin has been used before
   uint8_t resolution = 16;
 
-  // Only update attach channel if pin changed
-  value = adapt_ledc_frequency_resolution_duty(frequency, resolution, value);
-
-  if ((lastPin != pin)) {
-    int8_t ledChannel = attachLedChannel(pin, frequency, resolution);
-    lastPin = pin;
+  // Only update frequency & attach channel if pin/freq changed
+  if ((lastPin != pin) || (lastFreq != frequency)) {
+    value       = adapt_ledc_frequency_resolution_duty(frequency, resolution, value);
+    ledChannel = attachLedChannel(pin, frequency, resolution);
+    lastPin     = pin;
+    lastFreq    = frequency;
   }
 
   if (ledChannel != -1) {
@@ -193,7 +194,7 @@ uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
     ledcWrite(ledChannel, value);
     return ledChannelFreq[ledChannel];
     # else // if ESP_IDF_VERSION_MAJOR < 5
-    ledcWrite(pin,        value);
+    ledcWrite(pin,         value);
     return ledcReadFreq(pin);
     # endif // if ESP_IDF_VERSION_MAJOR < 5
   }
