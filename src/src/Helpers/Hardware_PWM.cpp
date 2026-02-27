@@ -169,6 +169,7 @@ void detachLedChannel(int pin) { ledcDetach(pin); }
 uint32_t analogWriteESP32(int pin, uint16_t value, uint32_t frequency)
 {
   static int lastPin       = -1;
+  int8_t ledChannel = -1;
 
   if (value == 0) {
     detachLedChannel(pin);
